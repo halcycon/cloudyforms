@@ -7,6 +7,7 @@ import { getFile } from "../lib/r2";
 import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
 import type { DocumentTemplate, FieldMapping } from "./forms";
+import { slugify, ensureUniqueSlug } from "./forms";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { marked } from "marked";
 
@@ -723,10 +724,7 @@ exportRouter.get("/form/:formId/bundle", authMiddleware, async (c) => {
         if (fileObj) {
           const buf = await fileObj.arrayBuffer();
           const bytes = new Uint8Array(buf);
-          let binary = "";
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
+          const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
           base64Data = btoa(binary);
         }
       } catch {
@@ -792,30 +790,6 @@ exportRouter.get("/form/:formId/bundle", authMiddleware, async (c) => {
 });
 
 // ── Form import ────────────────────────────────────────────────────────────────
-
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80);
-}
-
-async function ensureUniqueSlug(db: D1Database, base: string): Promise<string> {
-  let slug = base;
-  let suffix = 0;
-  while (true) {
-    const existing = await dbQueryFirst<{ id: string }>(
-      db,
-      "SELECT id FROM forms WHERE slug = ?",
-      [slug]
-    );
-    if (!existing) return slug;
-    suffix += 1;
-    slug = `${base}-${suffix}`;
-  }
-}
 
 const importFormSchema = z.object({
   orgId: z.string().min(1),

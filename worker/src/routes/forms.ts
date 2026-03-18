@@ -128,7 +128,7 @@ const updateFormSchema = z.object({
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function slugify(title: string): string {
+export function slugify(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
@@ -137,7 +137,7 @@ function slugify(title: string): string {
     .slice(0, 80);
 }
 
-async function ensureUniqueSlug(db: D1Database, base: string): Promise<string> {
+export async function ensureUniqueSlug(db: D1Database, base: string): Promise<string> {
   let slug = base;
   let suffix = 0;
   while (true) {

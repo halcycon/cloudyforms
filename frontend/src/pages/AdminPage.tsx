@@ -150,7 +150,7 @@ export default function AdminPage() {
                 placeholder="example.com"
                 value={newDomain}
                 onChange={(e) => setNewDomain(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDomain())}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddDomain(); } }}
                 className="flex-1"
               />
               <Button

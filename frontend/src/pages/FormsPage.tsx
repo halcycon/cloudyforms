@@ -55,6 +55,7 @@ export default function FormsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importData, setImportData] = useState<Record<string, unknown> | null>(null);
   const [importIncludeResponses, setImportIncludeResponses] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,19 +120,18 @@ export default function FormsPage() {
   }
 
   async function handleImport() {
-    if (!importFile || !currentOrg?.id) return;
+    if (!importData || !currentOrg?.id) return;
     setImporting(true);
     try {
-      const text = await importFile.text();
-      const data = JSON.parse(text);
-      if (!data._cloudyforms || !['form-config', 'form-bundle'].includes(data._cloudyforms)) {
+      if (!importData._cloudyforms || !['form-config', 'form-bundle'].includes(importData._cloudyforms as string)) {
         toast.error('Invalid CloudyForms export file');
         return;
       }
-      const hasResponses = data._cloudyforms === 'form-bundle' && data.responses?.length > 0;
+      const hasResponses = importData._cloudyforms === 'form-bundle' &&
+        Array.isArray(importData.responses) && (importData.responses as unknown[]).length > 0;
       const result = await exportData.importForm(
         currentOrg.id,
-        data,
+        importData,
         importIncludeResponses && hasResponses,
       );
       setFormsList((prev) => [result.form, ...prev]);
@@ -140,6 +140,7 @@ export default function FormsPage() {
       );
       setShowImport(false);
       setImportFile(null);
+      setImportData(null);
       setImportIncludeResponses(false);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
@@ -337,7 +338,7 @@ export default function FormsPage() {
       </AlertDialog>
 
       {/* Import dialog */}
-      <Dialog open={showImport} onOpenChange={(o) => { if (!o) { setShowImport(false); setImportFile(null); setImportIncludeResponses(false); } }}>
+      <Dialog open={showImport} onOpenChange={(o) => { if (!o) { setShowImport(false); setImportFile(null); setImportData(null); setImportIncludeResponses(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Import Form</DialogTitle>
@@ -356,15 +357,17 @@ export default function FormsPage() {
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null;
                   setImportFile(file);
+                  setImportData(null);
                   if (file) {
-                    // Preview: check if it's a bundle with responses
                     file.text().then((text) => {
                       try {
-                        const data = JSON.parse(text);
-                        if (data._cloudyforms === 'form-bundle' && data.responses?.length > 0) {
+                        const data = JSON.parse(text) as Record<string, unknown>;
+                        setImportData(data);
+                        if (data._cloudyforms === 'form-bundle' &&
+                          Array.isArray(data.responses) && (data.responses as unknown[]).length > 0) {
                           setImportIncludeResponses(true);
                         }
-                      } catch { /* ignore */ }
+                      } catch { /* ignore invalid JSON */ }
                     });
                   }
                 }}
@@ -406,12 +409,12 @@ export default function FormsPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowImport(false); setImportFile(null); }}>
+            <Button variant="outline" onClick={() => { setShowImport(false); setImportFile(null); setImportData(null); }}>
               Cancel
             </Button>
             <Button
               onClick={handleImport}
-              disabled={!importFile}
+              disabled={!importData}
               loading={importing}
             >
               <Upload className="h-4 w-4" />
