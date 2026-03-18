@@ -134,9 +134,9 @@ interface OptionListRow {
 }
 
 /**
- * Resolve option list references in form fields.
+ * Resolve option list references in form fields (mutates in place).
  * If a field has `optionListId`, fetch the options from the option_lists table
- * and merge them into the field's options array.
+ * and replace the field's options array with the latest values from the list.
  */
 async function resolveOptionListReferences(
   db: D1Database,

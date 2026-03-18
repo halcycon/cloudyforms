@@ -164,7 +164,7 @@ optionLists.get("/:listId", authMiddleware, async (c) => {
 });
 
 // Update option list
-optionLists.put(
+optionLists.patch(
   "/:listId",
   authMiddleware,
   zValidator("json", updateOptionListSchema),

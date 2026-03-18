@@ -182,7 +182,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
 
               {field.optionListId ? (
                 <p className="text-xs text-gray-400">
-                  Options are loaded from the selected list. Edit the list on the Option Lists page.
+                  Published forms will always use the latest options from this list.
                 </p>
               ) : (
                 <>
