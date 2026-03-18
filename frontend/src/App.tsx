@@ -19,6 +19,7 @@ import OrgMembersPage from '@/pages/OrgMembersPage';
 import OrgSettingsPage from '@/pages/OrgSettingsPage';
 import OrgDomainsPage from '@/pages/OrgDomainsPage';
 import FieldGroupsPage from '@/pages/FieldGroupsPage';
+import OptionListsPage from '@/pages/OptionListsPage';
 import KioskSetupPage from '@/pages/KioskSetupPage';
 import KioskPage from '@/pages/KioskPage';
 import PublicFormPage from '@/pages/PublicFormPage';
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/orgs/:orgId/settings" element={<WithLayout><OrgSettingsPage /></WithLayout>} />
         <Route path="/orgs/:orgId/domains" element={<WithLayout><OrgDomainsPage /></WithLayout>} />
         <Route path="/field-groups" element={<WithLayout><FieldGroupsPage /></WithLayout>} />
+        <Route path="/option-lists" element={<WithLayout><OptionListsPage /></WithLayout>} />
         <Route path="/kiosk-setup" element={<WithLayout><KioskSetupPage /></WithLayout>} />
         <Route path="/settings" element={<WithLayout><SettingsPage /></WithLayout>} />
         <Route

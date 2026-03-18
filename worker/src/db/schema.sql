@@ -144,6 +144,18 @@ CREATE TABLE IF NOT EXISTS custom_domains (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Option Lists (reusable pre-configured lists of dropdown values)
+CREATE TABLE IF NOT EXISTS option_lists (
+  id TEXT PRIMARY KEY,
+  org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE, -- null = global
+  name TEXT NOT NULL,
+  description TEXT,
+  options TEXT NOT NULL DEFAULT '[]', -- JSON array of {label, value}
+  created_by TEXT REFERENCES users(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Platform Settings (key-value store for global configuration)
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
@@ -164,3 +176,4 @@ CREATE INDEX IF NOT EXISTS idx_field_groups_org_id ON field_groups(org_id);
 CREATE INDEX IF NOT EXISTS idx_response_files_response_id ON response_files(response_id);
 CREATE INDEX IF NOT EXISTS idx_custom_domains_domain ON custom_domains(domain);
 CREATE INDEX IF NOT EXISTS idx_custom_domains_org ON custom_domains(org_id);
+CREATE INDEX IF NOT EXISTS idx_option_lists_org_id ON option_lists(org_id);

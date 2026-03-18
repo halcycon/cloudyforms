@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import type { FormField } from '@/lib/types';
+import { useState, useEffect } from 'react';
+import type { FormField, OptionList } from '@/lib/types';
+import { optionLists as optionListsApi } from '@/lib/api';
+import { useStore } from '@/lib/store';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,6 +25,12 @@ interface FieldEditorProps {
 
 export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   const [newOption, setNewOption] = useState('');
+  const { currentOrg } = useStore();
+  const [availableLists, setAvailableLists] = useState<OptionList[]>([]);
+
+  useEffect(() => {
+    optionListsApi.list(currentOrg?.id).then(setAvailableLists).catch(() => {});
+  }, [currentOrg?.id]);
 
   function addOption() {
     if (!newOption.trim()) return;
@@ -141,36 +149,75 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
           <>
             <Separator />
             <div className="space-y-2">
-              <Label>Options</Label>
-              {field.options?.map((opt, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Input
-                    value={opt.label}
-                    onChange={(e) => updateOption(i, 'label', e.target.value)}
-                    placeholder="Label"
-                    className="flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeOption(i)}
-                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+              {availableLists.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Use Option List</Label>
+                  <Select
+                    value={field.optionListId ?? '_none'}
+                    onValueChange={(v) => {
+                      if (v === '_none') {
+                        onChange({ optionListId: undefined });
+                      } else {
+                        const list = availableLists.find((l) => l.id === v);
+                        if (list) {
+                          onChange({ optionListId: v, options: list.options });
+                        }
+                      }
+                    }}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="None (custom options)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None (custom options)</SelectItem>
+                      {availableLists.map((list) => (
+                        <SelectItem key={list.id} value={list.id}>
+                          {list.name} ({list.options.length} options)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-              <div className="flex gap-2">
-                <Input
-                  value={newOption}
-                  onChange={(e) => setNewOption(e.target.value)}
-                  placeholder="New option"
-                  onKeyDown={(e) => e.key === 'Enter' && addOption()}
-                  className="flex-1"
-                />
-                <Button size="sm" variant="outline" onClick={addOption}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+              )}
+
+              {field.optionListId ? (
+                <p className="text-xs text-gray-400">
+                  Published forms will always use the latest options from this list.
+                </p>
+              ) : (
+                <>
+                  <Label>Options</Label>
+                  {field.options?.map((opt, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={opt.label}
+                        onChange={(e) => updateOption(i, 'label', e.target.value)}
+                        placeholder="Label"
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeOption(i)}
+                        className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newOption}
+                      onChange={(e) => setNewOption(e.target.value)}
+                      placeholder="New option"
+                      onKeyDown={(e) => e.key === 'Enter' && addOption()}
+                      className="flex-1"
+                    />
+                    <Button size="sm" variant="outline" onClick={addOption}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
