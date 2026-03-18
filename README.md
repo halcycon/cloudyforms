@@ -154,25 +154,25 @@ cd cloudyforms
 cd worker && npm install && cd ../frontend && npm install && cd ..
 
 # 3. Authenticate with Cloudflare
-wrangler login
+npx wrangler login
 
 # 4. Create D1 database
-wrangler d1 create cloudyforms
+npx wrangler d1 create cloudyforms
 # Copy the database_id into worker/wrangler.toml
 
 # 5. Apply the schema
-wrangler d1 execute cloudyforms --file=worker/src/db/schema.sql
+cd worker && npx wrangler d1 execute cloudyforms --remote --file=worker/src/db/schema.sql
 
 # 6. Create R2 bucket
-wrangler r2 bucket create cloudyforms-files
+npx wrangler r2 bucket create cloudyforms-files
 
 # 7. Set secrets (these are stored securely by Cloudflare, NOT in your repo)
-wrangler secret put JWT_SECRET            # random 32+ char string
-wrangler secret put TURNSTILE_SECRET_KEY  # from Cloudflare dashboard
-wrangler secret put MAILCHANNELS_API_KEY  # optional
+npx wrangler secret put JWT_SECRET            # random 32+ char string
+npx wrangler secret put TURNSTILE_SECRET_KEY  # from Cloudflare dashboard
+npx wrangler secret put MAILCHANNELS_API_KEY  # optional
 
 # 8. Deploy the worker
-cd worker && wrangler deploy
+cd worker && npx wrangler deploy
 
 # 9. Deploy the frontend via Cloudflare Dashboard (recommended)
 #    See "Deploying via Cloudflare Dashboard" below.
@@ -189,7 +189,7 @@ wrangler pages deploy dist --project-name cloudyforms
 ### Step 1 – Create D1 database
 
 ```bash
-wrangler d1 create cloudyforms
+npx wrangler d1 create cloudyforms
 ```
 
 Copy the `database_id` output into `worker/wrangler.toml`:
@@ -201,16 +201,16 @@ database_name = "cloudyforms"
 database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
-Apply schema:
+Apply schema (must be done within the worker directory to reference the wrangler.toml):
 
 ```bash
-wrangler d1 execute cloudyforms --file=worker/src/db/schema.sql
+cd worker && npx wrangler d1 execute cloudyforms --remote --file=worker/src/db/schema.sql
 ```
 
 ### Step 2 – Create R2 bucket
 
 ```bash
-wrangler r2 bucket create cloudyforms-files
+npx wrangler r2 bucket create cloudyforms-files
 ```
 
 ### Step 3 – Cloudflare Turnstile (anti-spam)
@@ -236,13 +236,13 @@ FROM_EMAIL = "noreply@yourdomain.com"
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-wrangler secret put JWT_SECRET
+npx wrangler secret put JWT_SECRET
 ```
 
 ### Step 6 – Deploy worker
 
 ```bash
-cd worker && wrangler deploy
+cd worker && npx wrangler deploy
 ```
 
 Note your workers.dev URL: `https://cloudyforms-worker.<account>.workers.dev`
@@ -277,7 +277,7 @@ The Worker (backend API) must be deployed first because the frontend needs its U
 
 ```bash
 cd worker
-wrangler deploy
+npx wrangler deploy
 ```
 
 Note your Worker URL — it will look like `https://cloudyforms-worker.<your-account>.workers.dev`.
