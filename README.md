@@ -12,12 +12,13 @@ Inspired by Formbricks. Multi-tenant, white-label, embeddable, kiosk-ready.
 3. [Prerequisites](#prerequisites)
 4. [Quick Start](#quick-start)
 5. [Cloudflare Setup (step-by-step)](#cloudflare-setup)
-6. [Environment Variables](#environment-variables)
-7. [Custom Domains](#custom-domains)
-8. [Embedding Forms](#embedding-forms)
-9. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
-10. [Free vs Paid Tier](#free-vs-paid-tier)
-11. [Development](#development)
+6. [GitHub Actions Deployment](#github-actions-deployment)
+7. [Environment Variables](#environment-variables)
+8. [Custom Domains](#custom-domains)
+9. [Embedding Forms](#embedding-forms)
+10. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
+11. [Free vs Paid Tier](#free-vs-paid-tier)
+12. [Development](#development)
 
 ---
 
@@ -192,6 +193,72 @@ Or connect the repository in Cloudflare Dashboard → Pages → Create project:
 | Build command | `cd frontend && npm run build` |
 | Build output | `frontend/dist` |
 | Environment variable | `VITE_API_URL` = your worker URL |
+
+---
+
+## GitHub Actions Deployment
+
+CloudyForms ships with two GitHub Actions workflows in `.github/workflows/` that automate deployment whenever you push to `main` (or open a pull request):
+
+| Workflow | File | Trigger |
+|---|---|---|
+| Deploy Worker | `deploy-worker.yml` | Push/PR touching `worker/**` |
+| Deploy Pages | `deploy-pages.yml` | Push/PR touching `frontend/**` |
+
+### Required GitHub Secrets
+
+Add these in **GitHub → Repository → Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | API token with *Cloudflare Workers Scripts:Edit* and *Cloudflare Pages:Edit* permissions |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare Account ID (found in the dashboard right-hand panel) |
+| `VITE_API_URL` | Full URL of your deployed worker, e.g. `https://cloudyforms-worker.<account>.workers.dev/api` |
+| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key (optional but recommended) |
+
+### Creating a scoped API Token
+
+1. Cloudflare Dashboard → **My Profile → API Tokens → Create Token**
+2. Use the **Edit Cloudflare Workers** template and add **Cloudflare Pages:Edit** permission
+3. Scope the token to your account
+4. Copy the token value into the `CLOUDFLARE_API_TOKEN` GitHub Secret
+
+### What the workflows do
+
+**`deploy-worker.yml`**
+
+- Runs `npm ci` in the `worker/` directory
+- On push to `main`: runs `wrangler deploy` to publish the Worker to production
+- Pull requests only trigger the install step (no deployment) so your CI still catches build errors
+
+**`deploy-pages.yml`**
+
+- Runs `npm ci` + `npm run build` in the `frontend/` directory (using `VITE_API_URL` and `VITE_TURNSTILE_SITE_KEY` from secrets)
+- On push to `main`: deploys `frontend/dist` to the `cloudyforms` Pages project on the `main` branch
+- On pull request: deploys a **preview** to a `pr-<number>` branch and posts the preview URL as a PR comment
+
+### Cloudflare Pages – Direct GitHub Integration (alternative)
+
+If you prefer Cloudflare to build the frontend automatically without GitHub Actions:
+
+1. Cloudflare Dashboard → **Pages → Create project → Connect to Git**
+2. Authorise GitHub and select your fork
+3. Configure the build:
+
+   | Setting | Value |
+   |---|---|
+   | Framework preset | None |
+   | Build command | `cd frontend && npm run build` |
+   | Build output directory | `frontend/dist` |
+
+4. Add environment variables under **Settings → Environment variables**:
+
+   | Variable | Value |
+   |---|---|
+   | `VITE_API_URL` | `https://cloudyforms-worker.<account>.workers.dev/api` |
+   | `VITE_TURNSTILE_SITE_KEY` | Your Turnstile site key |
+
+The Worker must still be deployed via GitHub Actions (or `wrangler deploy`) because Cloudflare Pages' built-in Git integration only covers the Pages frontend.
 
 ---
 
