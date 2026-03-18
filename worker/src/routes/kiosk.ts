@@ -225,7 +225,7 @@ kiosk.get("/:kioskId", authMiddleware, async (c) => {
 });
 
 // Update kiosk
-kiosk.put(
+kiosk.on(["PUT", "PATCH"],
   "/:kioskId",
   authMiddleware,
   zValidator("json", updateKioskSchema),

@@ -44,7 +44,8 @@ export default function OptionListsPage() {
   const [newOptionLabel, setNewOptionLabel] = useState('');
 
   useEffect(() => {
-    optionListsApi.list(currentOrg?.id)
+    if (!currentOrg?.id) return;
+    optionListsApi.list(currentOrg.id)
       .then(setLists)
       .catch(() => {})
       .finally(() => setLoading(false));

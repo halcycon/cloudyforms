@@ -186,7 +186,7 @@ auth.get("/me", authMiddleware, async (c) => {
   });
 });
 
-auth.put("/me", authMiddleware, zValidator("json", updateProfileSchema), async (c) => {
+auth.on(["PUT", "PATCH"], "/me", authMiddleware, zValidator("json", updateProfileSchema), async (c) => {
   const authUser = c.get("user");
   const updates = c.req.valid("json");
 

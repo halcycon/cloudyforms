@@ -134,7 +134,7 @@ export const forms = {
 
   unpublish: (id: string) => post<Form>(`/forms/${id}/unpublish`),
 
-  getPublic: (slug: string) => get<Form>(`/public/forms/${slug}`),
+  getPublic: (slug: string) => get<Form>(`/forms/public/${slug}`),
 
   duplicate: (id: string) => post<Form>(`/forms/${id}/duplicate`),
 };
@@ -142,14 +142,14 @@ export const forms = {
 // Responses
 export const responses = {
   submit: (slug: string, data: Record<string, unknown>, turnstileToken?: string) =>
-    post<{ message: string; id: string }>(`/public/forms/${slug}/submit`, {
+    post<{ message: string; id: string }>(`/responses/submit/${slug}`, {
       data,
       turnstileToken,
     }),
 
   list: (formId: string, params?: { page?: number; limit?: number; search?: string; startDate?: string; endDate?: string; includeSpam?: boolean }) =>
     get<{ responses: FormResponse[]; total: number; page: number; limit: number }>(
-      `/forms/${formId}/responses`,
+      `/responses/form/${formId}`,
       params as Record<string, unknown>,
     ),
 
@@ -157,7 +157,7 @@ export const responses = {
 
   delete: (id: string) => del<{ message: string }>(`/responses/${id}`),
 
-  bulkDelete: (ids: string[]) => post<{ message: string }>('/responses/bulk-delete', { ids }),
+  bulkDelete: (formId: string, ids: string[]) => post<{ message: string }>(`/responses/form/${formId}/bulk-delete`, { ids }),
 };
 
 // Export
@@ -211,19 +211,19 @@ export const files = {
 
 // Kiosk
 export const kiosk = {
-  list: (orgId: string) => get<Kiosk[]>('/kiosks', { orgId }),
+  list: (orgId: string) => get<Kiosk[]>('/kiosk', { orgId }),
 
   create: (data: { orgId: string; name: string; formIds: string[]; allowMultipleResponses?: boolean }) =>
-    post<Kiosk>('/kiosks', data),
+    post<Kiosk>('/kiosk', data),
 
-  get: (id: string) => get<Kiosk>(`/kiosks/${id}`),
+  get: (id: string) => get<Kiosk>(`/kiosk/${id}`),
 
   update: (id: string, data: Partial<Pick<Kiosk, 'name' | 'formIds' | 'allowMultipleResponses'>>) =>
-    patch<Kiosk>(`/kiosks/${id}`, data),
+    patch<Kiosk>(`/kiosk/${id}`, data),
 
-  delete: (id: string) => del<{ message: string }>(`/kiosks/${id}`),
+  delete: (id: string) => del<{ message: string }>(`/kiosk/${id}`),
 
-  getByToken: (token: string) => get<Kiosk & { forms: Form[] }>(`/public/kiosks/${token}`),
+  getByToken: (token: string) => get<Kiosk & { forms: Form[] }>(`/kiosk/token/${token}`),
 };
 
 // Field Groups

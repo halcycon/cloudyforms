@@ -29,7 +29,8 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   const [availableLists, setAvailableLists] = useState<OptionList[]>([]);
 
   useEffect(() => {
-    optionListsApi.list(currentOrg?.id).then(setAvailableLists).catch(() => {});
+    if (!currentOrg?.id) return;
+    optionListsApi.list(currentOrg.id).then(setAvailableLists).catch(() => {});
   }, [currentOrg?.id]);
 
   function addOption() {

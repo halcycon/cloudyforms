@@ -162,7 +162,7 @@ orgs.get("/:orgId", authMiddleware, async (c) => {
 });
 
 // Update organization
-orgs.put(
+orgs.on(["PUT", "PATCH"],
   "/:orgId",
   authMiddleware,
   requireRole("admin"),
@@ -302,7 +302,7 @@ orgs.post(
 );
 
 // Update member role
-orgs.put(
+orgs.on(["PUT", "PATCH"],
   "/:orgId/members/:userId",
   authMiddleware,
   requireRole("admin"),
