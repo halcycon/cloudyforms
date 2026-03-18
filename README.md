@@ -5,7 +5,7 @@
 
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)
 ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
-[![License](https://img.shields.io/github/license/thecuckoocamp/cloudyforms)](LICENSE)
+[![License](https://img.shields.io/github/license/halcycon/cloudyforms)](LICENSE)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-ff5f5f?logo=ko-fi&logoColor=white)](https://ko-fi.com/thecuckoocamp)
@@ -69,10 +69,9 @@ Suggestions, issues and pull requests are very welcome.
 
 ### Support the Project
 
-If you find CloudyForms useful and would like to support development:
+If CloudyForms saves you time or infrastructure costs, consider supporting development:
 
-☕ **Buy me a coffee**  
-https://ko-fi.com/thecuckoocamp
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/thecuckoocamp)
 
 ---
 
