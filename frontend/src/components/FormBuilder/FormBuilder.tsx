@@ -12,7 +12,7 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2 } from 'lucide-react';
+import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2, FileText } from 'lucide-react';
 import type { Form, FormField, FieldType, FormSettings, BrandingConfig } from '@/lib/types';
 import { forms as formsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
@@ -27,6 +27,7 @@ import { FormSettings as FormSettingsPanel } from './FormSettings';
 import { BrandingSettings } from './BrandingSettings';
 import { FieldPreview } from './FieldPreview';
 import { EmbedCode } from './EmbedCode';
+import { DocumentTemplateEditor } from './DocumentTemplateEditor';
 
 interface FormBuilderProps {
   formId?: string;
@@ -86,7 +87,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
     branding: DEFAULT_BRANDING,
   });
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'fields' | 'settings' | 'branding' | 'embed'>('fields');
+  const [activeTab, setActiveTab] = useState<'fields' | 'settings' | 'branding' | 'document' | 'embed'>('fields');
   const [dragOverlayField, setDragOverlayField] = useState<FormField | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -119,6 +120,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
           fields: formData.fields,
           settings: formData.settings,
           branding: formData.branding,
+          documentTemplate: formData.documentTemplate,
         });
       } else {
         if (!currentOrg) {
@@ -132,6 +134,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
           fields: formData.fields ?? [],
           settings: formData.settings,
           branding: formData.branding,
+          documentTemplate: formData.documentTemplate,
         });
         setForm(created);
         navigate(`/forms/${created.id}/edit`, { replace: true });
@@ -363,9 +366,12 @@ export function FormBuilder({ formId }: FormBuilderProps) {
         {/* Builder body */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left: palette + tabs */}
-          <div className="w-56 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white">
+          <div className={cn(
+            "flex-shrink-0 flex flex-col border-r border-gray-200 bg-white transition-all",
+            activeTab === 'document' ? 'w-[540px]' : 'w-56'
+          )}>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex flex-col h-full">
-              <TabsList className="m-2 grid w-auto grid-cols-4">
+              <TabsList className="m-2 grid w-auto grid-cols-5">
                 <TabsTrigger value="fields" title="Fields">
                   <Settings className="h-3.5 w-3.5" />
                 </TabsTrigger>
@@ -374,6 +380,9 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 </TabsTrigger>
                 <TabsTrigger value="branding" title="Branding">
                   <Paintbrush className="h-3.5 w-3.5" />
+                </TabsTrigger>
+                <TabsTrigger value="document" title="Document Template">
+                  <FileText className="h-3.5 w-3.5" />
                 </TabsTrigger>
                 <TabsTrigger value="embed" title="Embed" disabled={!form.id}>
                   <Code2 className="h-3.5 w-3.5" />
@@ -396,6 +405,14 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 <BrandingSettings
                   branding={form.branding ?? DEFAULT_BRANDING}
                   onChange={(branding) => updateForm({ branding })}
+                />
+              </TabsContent>
+
+              <TabsContent value="document" className="flex-1 overflow-auto mt-0">
+                <DocumentTemplateEditor
+                  template={form.documentTemplate ?? null}
+                  fields={form.fields ?? []}
+                  onChange={(documentTemplate) => updateForm({ documentTemplate })}
                 />
               </TabsContent>
 

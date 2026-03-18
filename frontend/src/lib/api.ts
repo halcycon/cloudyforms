@@ -7,6 +7,7 @@ import type {
   FormField,
   FormSettings,
   BrandingConfig,
+  DocumentTemplate,
   FormResponse,
   FieldGroup,
   Kiosk,
@@ -113,13 +114,14 @@ export const forms = {
     fields?: FormField[];
     settings?: Partial<FormSettings>;
     branding?: BrandingConfig;
+    documentTemplate?: DocumentTemplate | null;
   }) => post<Form>('/forms', data),
 
   get: (id: string) => get<Form>(`/forms/${id}`),
 
   update: (
     id: string,
-    data: Partial<Pick<Form, 'title' | 'description' | 'fields' | 'settings' | 'branding' | 'accessType' | 'accessCode'>>,
+    data: Partial<Pick<Form, 'title' | 'description' | 'fields' | 'settings' | 'branding' | 'documentTemplate' | 'accessType' | 'accessCode'>>,
   ) => patch<Form>(`/forms/${id}`, data),
 
   delete: (id: string) => del<{ message: string }>(`/forms/${id}`),
@@ -165,6 +167,26 @@ export const exportData = {
     apiClient
       .get(`/forms/${formId}/export/json`, { responseType: 'text' })
       .then((r) => r.data as string),
+
+  responsePdf: (responseId: string) =>
+    apiClient
+      .get(`/export/response/${responseId}/pdf`, { responseType: 'blob' })
+      .then((r) => r.data as Blob),
+};
+
+// Files
+export const files = {
+  upload: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient
+      .post<{ key: string; url: string; name: string; size: number; contentType: string }>(
+        '/files/upload',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      )
+      .then((r) => r.data);
+  },
 };
 
 // Kiosk

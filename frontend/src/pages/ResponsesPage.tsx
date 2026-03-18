@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { forms as formsApi, responses as responsesApi, exportData } from '@/lib/api';
 import { downloadFile, formatDate, cn } from '@/lib/utils';
@@ -96,6 +96,23 @@ export default function ResponsesPage() {
       downloadFile(json, `${form?.slug ?? formId}-responses.json`, 'application/json');
     } catch {
       toast.error('Export failed');
+    }
+  }
+
+  async function handleDownloadPdf(responseId: string) {
+    try {
+      const blob = await exportData.responsePdf(responseId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${form?.slug ?? formId}-response-${responseId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Failed to generate PDF');
     }
   }
 
@@ -350,6 +367,21 @@ export default function ResponsesPage() {
                     );
                   })}
               </div>
+
+              {/* Download PDF button - shown when form has a document template */}
+              {form?.documentTemplate?.enabled && (
+                <div className="pt-2 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadPdf(expandedResponse.id)}
+                    className="w-full"
+                  >
+                    <FileText className="h-4 w-4 mr-1.5" />
+                    Download Filled PDF
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
