@@ -370,7 +370,7 @@ forms.get("/:formId", authMiddleware, async (c) => {
 });
 
 // Update form
-forms.put(
+forms.on(["PUT", "PATCH"],
   "/:formId",
   authMiddleware,
   zValidator("json", updateFormSchema),

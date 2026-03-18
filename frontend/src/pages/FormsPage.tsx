@@ -61,9 +61,10 @@ export default function FormsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadForms = useCallback(async () => {
+    if (!currentOrg?.id) return;
     setLoading(true);
     try {
-      const data = await formsApi.list(currentOrg?.id);
+      const data = await formsApi.list(currentOrg.id);
       setFormsList(data);
     } catch {
       toast.error('Failed to load forms');

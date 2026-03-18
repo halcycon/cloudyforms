@@ -26,10 +26,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
+      if (!currentOrg?.id) return;
       try {
         const [userData, formsData, orgsData] = await Promise.all([
           user ? Promise.resolve(user) : authApi.me(),
-          formsApi.list(currentOrg?.id),
+          formsApi.list(currentOrg.id),
           orgsApi.list(),
         ]);
 
