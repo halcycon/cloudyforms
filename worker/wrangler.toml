@@ -1,0 +1,27 @@
+name = "cloudyforms-worker"
+main = "src/index.ts"
+compatibility_date = "2024-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+TURNSTILE_SECRET_KEY = ""
+JWT_SECRET = ""
+MAILCHANNELS_API_KEY = ""
+FROM_EMAIL = "noreply@cloudyforms.example.com"
+# Comma-separated list of allowed CORS origins for the management API.
+# Use "*" to allow all (fine for public deployments; tighten in production).
+# Embed/public routes always allow cross-origin requests regardless of this value.
+ALLOWED_ORIGINS = "*"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudyforms"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "cloudyforms-files"
+
+[dev]
+port = 8787

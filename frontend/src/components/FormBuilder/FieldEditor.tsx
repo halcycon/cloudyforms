@@ -1,0 +1,480 @@
+import { useState } from 'react';
+import type { FormField } from '@/lib/types';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Trash2 } from 'lucide-react';
+
+interface FieldEditorProps {
+  field: FormField;
+  allFields: FormField[];
+  onChange: (updates: Partial<FormField>) => void;
+}
+
+export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
+  const [newOption, setNewOption] = useState('');
+
+  function addOption() {
+    if (!newOption.trim()) return;
+    const opt = { label: newOption.trim(), value: newOption.trim().toLowerCase().replace(/\s+/g, '_') };
+    onChange({ options: [...(field.options ?? []), opt] });
+    setNewOption('');
+  }
+
+  function removeOption(index: number) {
+    onChange({ options: field.options?.filter((_, i) => i !== index) });
+  }
+
+  function updateOption(index: number, key: 'label' | 'value', val: string) {
+    const opts = [...(field.options ?? [])];
+    opts[index] = { ...opts[index], [key]: val };
+    onChange({ options: opts });
+  }
+
+  const hasOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type);
+  const hasPlaceholder = !['heading', 'paragraph', 'divider', 'rating', 'scale', 'checkbox', 'file', 'signature'].includes(field.type);
+  const hasContent = field.type === 'heading' || field.type === 'paragraph';
+  const isLayout = ['heading', 'paragraph', 'divider'].includes(field.type);
+
+  return (
+    <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
+      <div className="p-4 space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+            {field.type.charAt(0).toUpperCase() + field.type.slice(1)} Field
+          </h3>
+          <p className="text-xs text-gray-400 font-mono">{field.id.slice(0, 8)}...</p>
+        </div>
+
+        <Separator />
+
+        {/* Label */}
+        <div className="space-y-1.5">
+          <Label>Label</Label>
+          <Input
+            value={field.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+            placeholder="Field label"
+          />
+        </div>
+
+        {/* Content (heading/paragraph) */}
+        {hasContent && (
+          <div className="space-y-1.5">
+            <Label>Content</Label>
+            <Textarea
+              value={field.content ?? ''}
+              onChange={(e) => onChange({ content: e.target.value })}
+              placeholder={field.type === 'heading' ? 'Heading text' : 'Paragraph text'}
+              rows={3}
+            />
+          </div>
+        )}
+
+        {/* Heading level */}
+        {field.type === 'heading' && (
+          <div className="space-y-1.5">
+            <Label>Heading Level</Label>
+            <Select
+              value={String(field.level ?? 2)}
+              onValueChange={(v) => onChange({ level: Number(v) as 1 | 2 | 3 })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">H1 - Large</SelectItem>
+                <SelectItem value="2">H2 - Medium</SelectItem>
+                <SelectItem value="3">H3 - Small</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Placeholder */}
+        {hasPlaceholder && (
+          <div className="space-y-1.5">
+            <Label>Placeholder</Label>
+            <Input
+              value={field.placeholder ?? ''}
+              onChange={(e) => onChange({ placeholder: e.target.value })}
+              placeholder="Placeholder text"
+            />
+          </div>
+        )}
+
+        {/* Description */}
+        {!isLayout && (
+          <div className="space-y-1.5">
+            <Label>Description</Label>
+            <Input
+              value={field.description ?? ''}
+              onChange={(e) => onChange({ description: e.target.value })}
+              placeholder="Help text for this field"
+            />
+          </div>
+        )}
+
+        {/* Required toggle */}
+        {!isLayout && (
+          <div className="flex items-center justify-between">
+            <Label>Required</Label>
+            <Switch
+              checked={field.required}
+              onCheckedChange={(v) => onChange({ required: v })}
+            />
+          </div>
+        )}
+
+        {/* Options */}
+        {hasOptions && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <Label>Options</Label>
+              {field.options?.map((opt, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    value={opt.label}
+                    onChange={(e) => updateOption(i, 'label', e.target.value)}
+                    placeholder="Label"
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeOption(i)}
+                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Input
+                  value={newOption}
+                  onChange={(e) => setNewOption(e.target.value)}
+                  placeholder="New option"
+                  onKeyDown={(e) => e.key === 'Enter' && addOption()}
+                  className="flex-1"
+                />
+                <Button size="sm" variant="outline" onClick={addOption}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Rating / Scale settings */}
+        {(field.type === 'rating' || field.type === 'scale') && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label>Range</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-gray-500">Min</Label>
+                  <Input
+                    type="number"
+                    value={field.min ?? 1}
+                    onChange={(e) => onChange({ min: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-gray-500">Max</Label>
+                  <Input
+                    type="number"
+                    value={field.max ?? (field.type === 'rating' ? 5 : 10)}
+                    onChange={(e) => onChange({ max: Number(e.target.value) })}
+                  />
+                </div>
+                {field.type === 'scale' && (
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-gray-500">Step</Label>
+                    <Input
+                      type="number"
+                      value={field.step ?? 1}
+                      onChange={(e) => onChange({ step: Number(e.target.value) })}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* File upload settings */}
+        {field.type === 'file' && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Accepted File Types</Label>
+                <Input
+                  value={field.accept ?? ''}
+                  onChange={(e) => onChange({ accept: e.target.value })}
+                  placeholder="e.g. .pdf,.doc,image/*"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Max File Size (MB)</Label>
+                <Input
+                  type="number"
+                  value={field.maxSize ?? ''}
+                  onChange={(e) => onChange({ maxSize: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 10"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Allow Multiple Files</Label>
+                <Switch
+                  checked={field.multiple ?? false}
+                  onCheckedChange={(v) => onChange({ multiple: v })}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Validation */}
+        {['text', 'textarea', 'email', 'phone'].includes(field.type) && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label>Validation</Label>
+              <div className="flex gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-gray-500">Min Length</Label>
+                  <Input
+                    type="number"
+                    value={field.validation?.minLength ?? ''}
+                    onChange={(e) =>
+                      onChange({
+                        validation: {
+                          ...field.validation,
+                          minLength: e.target.value ? Number(e.target.value) : undefined,
+                        },
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs text-gray-500">Max Length</Label>
+                  <Input
+                    type="number"
+                    value={field.validation?.maxLength ?? ''}
+                    onChange={(e) =>
+                      onChange({
+                        validation: {
+                          ...field.validation,
+                          maxLength: e.target.value ? Number(e.target.value) : undefined,
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">Pattern (regex)</Label>
+                <Input
+                  value={field.validation?.pattern ?? ''}
+                  onChange={(e) =>
+                    onChange({
+                      validation: {
+                        ...field.validation,
+                        pattern: e.target.value || undefined,
+                      },
+                    })
+                  }
+                  placeholder="e.g. ^[A-Z]+"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Conditional Logic */}
+        {!isLayout && allFields.filter((f) => f.id !== field.id && !['heading', 'paragraph', 'divider'].includes(f.type)).length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Conditional Logic</Label>
+                {!field.conditionalLogic ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      onChange({
+                        conditionalLogic: {
+                          action: 'show',
+                          logicType: 'all',
+                          conditions: [],
+                        },
+                      })
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onChange({ conditionalLogic: undefined })}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+
+              {field.conditionalLogic && (
+                <div className="space-y-2 rounded-md bg-gray-50 p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={field.conditionalLogic.action}
+                      onValueChange={(v) =>
+                        onChange({
+                          conditionalLogic: {
+                            ...field.conditionalLogic!,
+                            action: v as 'show' | 'hide',
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="show">Show</SelectItem>
+                        <SelectItem value="hide">Hide</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-gray-500">this field when</span>
+                    <Select
+                      value={field.conditionalLogic.logicType}
+                      onValueChange={(v) =>
+                        onChange({
+                          conditionalLogic: {
+                            ...field.conditionalLogic!,
+                            logicType: v as 'all' | 'any',
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">ALL</SelectItem>
+                        <SelectItem value="any">ANY</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {field.conditionalLogic.conditions.map((cond, i) => (
+                    <div key={i} className="flex items-center gap-1.5 flex-wrap">
+                      <Select
+                        value={cond.fieldId}
+                        onValueChange={(v) => {
+                          const conditions = [...field.conditionalLogic!.conditions];
+                          conditions[i] = { ...cond, fieldId: v };
+                          onChange({ conditionalLogic: { ...field.conditionalLogic!, conditions } });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1 min-w-[80px]">
+                          <SelectValue placeholder="Field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allFields
+                            .filter((f) => f.id !== field.id && !['heading', 'paragraph', 'divider'].includes(f.type))
+                            .map((f) => (
+                              <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={cond.operator}
+                        onValueChange={(v) => {
+                          const conditions = [...field.conditionalLogic!.conditions];
+                          conditions[i] = { ...cond, operator: v as typeof cond.operator };
+                          onChange({ conditionalLogic: { ...field.conditionalLogic!, conditions } });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-[90px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="equals">equals</SelectItem>
+                          <SelectItem value="not_equals">≠</SelectItem>
+                          <SelectItem value="contains">contains</SelectItem>
+                          <SelectItem value="not_contains">not contains</SelectItem>
+                          <SelectItem value="greater_than">&gt;</SelectItem>
+                          <SelectItem value="less_than">&lt;</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        className="h-7 text-xs flex-1 min-w-[60px]"
+                        value={cond.value}
+                        onChange={(e) => {
+                          const conditions = [...field.conditionalLogic!.conditions];
+                          conditions[i] = { ...cond, value: e.target.value };
+                          onChange({ conditionalLogic: { ...field.conditionalLogic!, conditions } });
+                        }}
+                        placeholder="Value"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const conditions = field.conditionalLogic!.conditions.filter((_, ci) => ci !== i);
+                          onChange({ conditionalLogic: { ...field.conditionalLogic!, conditions } });
+                        }}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const otherField = allFields.find(
+                        (f) => f.id !== field.id && !['heading', 'paragraph', 'divider'].includes(f.type),
+                      );
+                      if (!otherField) return;
+                      onChange({
+                        conditionalLogic: {
+                          ...field.conditionalLogic!,
+                          conditions: [
+                            ...field.conditionalLogic!.conditions,
+                            { fieldId: otherField.id, operator: 'equals', value: '' },
+                          ],
+                        },
+                      });
+                    }}
+                  >
+                    <Plus className="h-3 w-3" /> Add Condition
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

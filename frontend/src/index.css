@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: 79 70 229;
+  --primary-foreground: 255 255 255;
+  --secondary: 100 116 139;
+  --secondary-foreground: 255 255 255;
+  --background: 255 255 255;
+  --foreground: 15 23 42;
+  --card: 255 255 255;
+  --card-foreground: 15 23 42;
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --accent: 241 245 249;
+  --accent-foreground: 15 23 42;
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+  --border: 226 232 240;
+  --input: 226 232 240;
+  --ring: 79 70 229;
+  --radius: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus ring */
+[data-radix-focus-guard] {
+  outline: none !important;
+}
+
+/* Signature canvas */
+.signature-canvas {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Form builder drag overlay */
+.drag-overlay {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+/* Star rating */
+.star-rating .star {
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.star-rating .star:hover {
+  transform: scale(1.1);
+}
