@@ -10,6 +10,9 @@
  *        height adjusts dynamically (no scrollbars needed).
  *     3. Exposes a global CloudyForms.embed(slug, selector) API for
  *        programmatic use.
+ *     4. Uses a MutationObserver to auto-initialise form containers that are
+ *        added to the DOM after initial page load (e.g. Hugo themes with
+ *        Turbo/PJAX, SPA client-side navigation).
  *
  * GET /api/embed/config/:slug
  *   Returns minimal public form metadata (title, branding) so the embed
@@ -88,6 +91,41 @@ if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',autoInit);
 }else{
   autoInit();
+}
+
+// Watch for dynamically added data-cloudyform(s) elements.
+// This handles Hugo themes using Turbo/PJAX, SPA client-side navigation,
+// and any framework that inserts form containers after initial page load.
+if(typeof MutationObserver!=='undefined'){
+  new MutationObserver(function(mutations){
+    for(var m=0;m<mutations.length;m++){
+      var nodes=mutations[m].addedNodes;
+      for(var n=0;n<nodes.length;n++){
+        var node=nodes[n];
+        if(node.nodeType!==1) continue;
+        // Check the node itself
+        if(node.matches&&node.matches('[data-cloudyform],[data-cloudyforms]')){
+          var s=node.getAttribute('data-cloudyform')||node.getAttribute('data-cloudyforms');
+          if(s&&!node.getAttribute('data-cf-init')){
+            node.setAttribute('data-cf-init','1');
+            createIframe(s,node,{theme:node.getAttribute('data-theme')||''});
+          }
+        }
+        // Check children of the added node
+        if(node.querySelectorAll){
+          var nested=node.querySelectorAll('[data-cloudyform],[data-cloudyforms]');
+          for(var j=0;j<nested.length;j++){
+            var el=nested[j];
+            var slug=el.getAttribute('data-cloudyform')||el.getAttribute('data-cloudyforms');
+            if(slug&&!el.getAttribute('data-cf-init')){
+              el.setAttribute('data-cf-init','1');
+              createIframe(slug,el,{theme:el.getAttribute('data-theme')||''});
+            }
+          }
+        }
+      }
+    }
+  }).observe(document.documentElement,{childList:true,subtree:true});
 }
 
 // Public API
