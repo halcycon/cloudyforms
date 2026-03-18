@@ -12,13 +12,14 @@ Inspired by Formbricks. Multi-tenant, white-label, embeddable, kiosk-ready.
 3. [Prerequisites](#prerequisites)
 4. [Quick Start](#quick-start)
 5. [Cloudflare Setup (step-by-step)](#cloudflare-setup)
-6. [GitHub Actions Deployment](#github-actions-deployment)
-7. [Environment Variables](#environment-variables)
-8. [Custom Domains](#custom-domains)
-9. [Embedding Forms](#embedding-forms)
-10. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
-11. [Free vs Paid Tier](#free-vs-paid-tier)
-12. [Development](#development)
+6. [Deploying via Cloudflare Dashboard (recommended)](#deploying-via-cloudflare-dashboard-recommended)
+7. [Alternative: GitHub Actions Deployment](#alternative-github-actions-deployment)
+8. [Environment Variables](#environment-variables)
+9. [Custom Domains](#custom-domains)
+10. [Embedding Forms](#embedding-forms)
+11. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
+12. [Free vs Paid Tier](#free-vs-paid-tier)
+13. [Development](#development)
 
 ---
 
@@ -75,6 +76,11 @@ Inspired by Formbricks. Multi-tenant, white-label, embeddable, kiosk-ready.
 
 ## Quick Start
 
+> **⚠️ Security note:** Never commit secrets (API keys, JWT secrets, Turnstile keys) into
+> `wrangler.toml`, `.env` files, or any other file that is pushed to a public repository.
+> Use `wrangler secret put` for worker secrets and the Cloudflare Dashboard environment
+> variables UI for Pages build-time variables.
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/halcycon/cloudyforms.git
@@ -96,18 +102,19 @@ wrangler d1 execute cloudyforms --file=worker/src/db/schema.sql
 # 6. Create R2 bucket
 wrangler r2 bucket create cloudyforms-files
 
-# 7. Set secrets
-wrangler secret put JWT_SECRET          # random 32+ char string
+# 7. Set secrets (these are stored securely by Cloudflare, NOT in your repo)
+wrangler secret put JWT_SECRET            # random 32+ char string
 wrangler secret put TURNSTILE_SECRET_KEY  # from Cloudflare dashboard
 wrangler secret put MAILCHANNELS_API_KEY  # optional
 
 # 8. Deploy the worker
 cd worker && wrangler deploy
 
-# 9. Build & deploy the frontend
+# 9. Deploy the frontend via Cloudflare Dashboard (recommended)
+#    See "Deploying via Cloudflare Dashboard" below.
+#    Or deploy manually with Wrangler:
 cd ../frontend
-echo "VITE_API_URL=https://cloudyforms-worker.<your-account>.workers.dev/api" > .env
-npm run build
+VITE_API_URL="https://cloudyforms-worker.<your-account>.workers.dev/api" npm run build
 wrangler pages deploy dist --project-name cloudyforms
 ```
 
@@ -147,7 +154,7 @@ wrangler r2 bucket create cloudyforms-files
 1. Cloudflare Dashboard → Turnstile → Add widget
 2. Widget type: **Managed**
 3. Add your frontend domain as an allowed hostname
-4. Copy **Site Key** → `VITE_TURNSTILE_SITE_KEY` in `frontend/.env`
+4. Copy **Site Key** → you will add this as an environment variable in the Cloudflare Pages dashboard (see [Deploying via Cloudflare Dashboard](#deploying-via-cloudflare-dashboard-recommended)) or pass it at build time as `VITE_TURNSTILE_SITE_KEY`
 5. Copy **Secret Key** → `wrangler secret put TURNSTILE_SECRET_KEY`
 
 ### Step 4 – Mailchannels (email)
@@ -178,27 +185,109 @@ Note your workers.dev URL: `https://cloudyforms-worker.<account>.workers.dev`
 
 ### Step 7 – Deploy frontend (Cloudflare Pages)
 
+The recommended approach is to deploy the frontend via the **Cloudflare Dashboard** so that Cloudflare builds and deploys automatically whenever you push to your repository. See [Deploying via Cloudflare Dashboard](#deploying-via-cloudflare-dashboard-recommended) for full instructions.
+
+Alternatively, deploy manually with Wrangler:
+
 ```bash
 cd frontend
-cp .env.example .env   # or create .env manually
-# Set VITE_API_URL to your worker URL
+VITE_API_URL="https://cloudyforms-worker.<account>.workers.dev/api" \
+VITE_TURNSTILE_SITE_KEY="your-turnstile-site-key" \
 npm run build
 wrangler pages deploy dist --project-name cloudyforms
 ```
 
-Or connect the repository in Cloudflare Dashboard → Pages → Create project:
-
-| Setting | Value |
-|---|---|
-| Build command | `cd frontend && npm run build` |
-| Build output | `frontend/dist` |
-| Environment variable | `VITE_API_URL` = your worker URL |
+> **Tip:** Pass environment variables inline or export them in your shell session rather
+> than writing them to a `.env` file that could accidentally be committed to a public
+> repository.
 
 ---
 
-## GitHub Actions Deployment
+## Deploying via Cloudflare Dashboard (recommended)
 
-CloudyForms ships with two GitHub Actions workflows in `.github/workflows/` that automate deployment whenever you push to `main` (or open a pull request):
+Linking your repository directly in the Cloudflare Dashboard is the simplest way to deploy the frontend. Cloudflare will automatically build and publish your site whenever you push changes — no GitHub Actions or API tokens required.
+
+### Step 1 – Deploy the Worker
+
+The Worker (backend API) must be deployed first because the frontend needs its URL.
+
+```bash
+cd worker
+wrangler deploy
+```
+
+Note your Worker URL — it will look like `https://cloudyforms-worker.<your-account>.workers.dev`.
+
+> **Note:** There is no built-in Cloudflare Dashboard integration for Workers tied to a
+> Git repo. You can deploy the Worker manually with `wrangler deploy`, or use the
+> [GitHub Actions workflow](#alternative-github-actions-deployment) described below if you
+> want automated Worker deployments on push.
+
+### Step 2 – Create a Pages project linked to your repo
+
+1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Navigate to **Workers & Pages** in the left sidebar
+3. Click **Create** → **Pages** → **Connect to Git**
+4. Authorise Cloudflare to access your GitHub account (if not already done)
+5. Select your **cloudyforms** repository (or your fork of it)
+6. Click **Begin setup**
+
+### Step 3 – Configure build settings
+
+| Setting | Value |
+|---|---|
+| **Production branch** | `main` |
+| **Framework preset** | None |
+| **Root directory** | `frontend` |
+| **Build command** | `npm run build` |
+| **Build output directory** | `dist` |
+
+> **Why set Root directory to `frontend`?** This tells Cloudflare Pages to run the build
+> command from inside the `frontend/` folder, so paths resolve correctly and only frontend
+> changes trigger rebuilds.
+
+### Step 4 – Add environment variables
+
+Still on the same setup page, expand **Environment variables** and add:
+
+| Variable name | Value | Notes |
+|---|---|---|
+| `VITE_API_URL` | `https://cloudyforms-worker.<your-account>.workers.dev/api` | Replace with your actual Worker URL from Step 1 |
+| `VITE_TURNSTILE_SITE_KEY` | *(your Turnstile site key)* | From Cloudflare Dashboard → Turnstile |
+| `NODE_VERSION` | `20` | Ensures Cloudflare uses Node 20 for the build |
+
+> **Security:** These variables are stored securely in Cloudflare's build environment.
+> They are **not** committed to your repository and are not publicly visible.
+
+### Step 5 – Save and deploy
+
+Click **Save and Deploy**. Cloudflare will clone your repo, install dependencies, run the build, and publish the site. You'll see a deployment URL like `https://cloudyforms.pages.dev`.
+
+### Step 6 – Verify
+
+Open your Pages URL in a browser. You should see the CloudyForms login/signup page. Confirm that the frontend can reach the Worker API by signing up or logging in.
+
+### Automatic deployments
+
+From now on, every push to your `main` branch that changes files under `frontend/` will trigger a new production deployment automatically. Pull requests will generate **preview deployments** with unique URLs so you can test changes before merging.
+
+You can review deployment history and preview URLs under **Workers & Pages → cloudyforms → Deployments** in the Cloudflare Dashboard.
+
+### Adding a custom domain (optional)
+
+1. In the Cloudflare Dashboard, go to **Workers & Pages → cloudyforms → Custom domains**
+2. Click **Set up a custom domain**
+3. Enter your domain (e.g. `forms.yourdomain.com`) and follow the DNS prompts
+
+---
+
+## Alternative: GitHub Actions Deployment
+
+CloudyForms also ships with two GitHub Actions workflows in `.github/workflows/` that automate deployment whenever you push to `main` (or open a pull request). This approach is useful if you want CI-driven deployments for **both** the Worker and the frontend, or if you need to run additional checks before deploying.
+
+> **Note:** If you are already using the Cloudflare Dashboard to deploy the frontend
+> (see above), you do not need the `deploy-pages.yml` workflow. You may still use
+> `deploy-worker.yml` to automate Worker deployments.
 
 | Workflow | File | Trigger |
 |---|---|---|
@@ -237,45 +326,37 @@ Add these in **GitHub → Repository → Settings → Secrets and variables → 
 - On push to `main`: deploys `frontend/dist` to the `cloudyforms` Pages project on the `main` branch
 - On pull request: deploys a **preview** to a `pr-<number>` branch and posts the preview URL as a PR comment
 
-### Cloudflare Pages – Direct GitHub Integration (alternative)
-
-If you prefer Cloudflare to build the frontend automatically without GitHub Actions:
-
-1. Cloudflare Dashboard → **Pages → Create project → Connect to Git**
-2. Authorise GitHub and select your fork
-3. Configure the build:
-
-   | Setting | Value |
-   |---|---|
-   | Framework preset | None |
-   | Build command | `cd frontend && npm run build` |
-   | Build output directory | `frontend/dist` |
-
-4. Add environment variables under **Settings → Environment variables**:
-
-   | Variable | Value |
-   |---|---|
-   | `VITE_API_URL` | `https://cloudyforms-worker.<account>.workers.dev/api` |
-   | `VITE_TURNSTILE_SITE_KEY` | Your Turnstile site key |
-
-The Worker must still be deployed via GitHub Actions (or `wrangler deploy`) because Cloudflare Pages' built-in Git integration only covers the Pages frontend.
+The Worker must still be deployed via `wrangler deploy` (or the `deploy-worker.yml` GitHub Action) because Cloudflare Pages' built-in Git integration only covers the Pages frontend.
 
 ---
 
 ## Environment Variables
 
-### Worker (`wrangler.toml` / Cloudflare secrets)
+> **⚠️ Important:** Secrets must **never** be added to `wrangler.toml` or committed to
+> your repository. Use `wrangler secret put <NAME>` for worker secrets and the Cloudflare
+> Dashboard for Pages build variables.
+
+### Worker
+
+**Non-sensitive config** (safe to keep in `wrangler.toml` under `[vars]`):
 
 | Variable | Required | Description |
 |---|---|---|
-| `JWT_SECRET` | Yes | JWT signing secret (32+ chars) |
-| `TURNSTILE_SECRET_KEY` | Yes | Cloudflare Turnstile secret key |
 | `FROM_EMAIL` | Yes | Sender address for emails |
-| `MAILCHANNELS_API_KEY` | Optional | Mailchannels authenticated sending |
 | `ALLOWED_ORIGINS` | Optional | Comma-separated CORS origins (default `*`) |
 | `ENVIRONMENT` | Optional | `development` enables verbose errors |
 
-### Frontend (`frontend/.env`)
+**Secrets** (set via `wrangler secret put <NAME>`):
+
+| Secret | Required | Description |
+|---|---|---|
+| `JWT_SECRET` | Yes | JWT signing secret (32+ chars) |
+| `TURNSTILE_SECRET_KEY` | Yes | Cloudflare Turnstile secret key |
+| `MAILCHANNELS_API_KEY` | Optional | Mailchannels authenticated sending |
+
+### Frontend
+
+Set these as **environment variables in the Cloudflare Pages dashboard** (or pass them inline when building locally). Do not commit them to the repository.
 
 | Variable | Description |
 |---|---|
