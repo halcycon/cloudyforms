@@ -1,7 +1,10 @@
 import { Hono } from "hono";
-import { dbQuery, dbQueryFirst } from "../lib/db";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware } from "../middleware/auth";
 import { getFile } from "../lib/r2";
+import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
 import type { DocumentTemplate, FieldMapping } from "./forms";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -13,7 +16,14 @@ interface FormRow {
   id: string;
   org_id: string;
   title: string;
+  description: string | null;
+  slug: string;
+  status: string;
+  access_type: string;
+  access_code: string | null;
   fields: string;
+  settings: string;
+  branding: string;
   document_template: string | null;
 }
 
@@ -25,6 +35,16 @@ interface ResponseRow {
   submitter_email: string | null;
   is_spam: number;
   created_at: string;
+}
+
+interface ResponseFileRow {
+  id: string;
+  response_id: string;
+  field_id: string;
+  file_key: string;
+  file_name: string;
+  file_size: number | null;
+  content_type: string | null;
 }
 
 async function getUserOrgRole(
@@ -608,6 +628,348 @@ exportRouter.get("/response/:responseId/pdf", authMiddleware, async (c) => {
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
+});
+
+// ── Form config export ─────────────────────────────────────────────────────────
+
+// Export form configuration only (no responses)
+exportRouter.get("/form/:formId/config", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const { formId } = c.req.param();
+
+  const form = await dbQueryFirst<FormRow>(
+    c.env.DB,
+    "SELECT * FROM forms WHERE id = ?",
+    [formId]
+  );
+
+  if (!form) return c.json({ error: "Form not found" }, 404);
+
+  const role = user.isSuperAdmin
+    ? "owner"
+    : await getUserOrgRole(c.env.DB, user.userId, form.org_id);
+
+  if (!role) return c.json({ error: "Access denied" }, 403);
+
+  const exportPayload = {
+    _cloudyforms: "form-config",
+    _version: 1,
+    title: form.title,
+    description: form.description,
+    fields: JSON.parse(form.fields),
+    settings: JSON.parse(form.settings),
+    branding: JSON.parse(form.branding),
+    documentTemplate: form.document_template ? JSON.parse(form.document_template) : null,
+    accessType: form.access_type,
+    exportedAt: new Date().toISOString(),
+  };
+
+  const filename = `${form.title.replace(/[^a-z0-9]/gi, "_")}-config.json`;
+
+  return new Response(JSON.stringify(exportPayload, null, 2), {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+});
+
+// Export form configuration + responses (bundle)
+exportRouter.get("/form/:formId/bundle", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const { formId } = c.req.param();
+
+  const form = await dbQueryFirst<FormRow>(
+    c.env.DB,
+    "SELECT * FROM forms WHERE id = ?",
+    [formId]
+  );
+
+  if (!form) return c.json({ error: "Form not found" }, 404);
+
+  const role = user.isSuperAdmin
+    ? "owner"
+    : await getUserOrgRole(c.env.DB, user.userId, form.org_id);
+
+  if (!role) return c.json({ error: "Access denied" }, 403);
+
+  // Fetch all responses
+  const responses = await dbQuery<ResponseRow>(
+    c.env.DB,
+    "SELECT * FROM form_responses WHERE form_id = ? ORDER BY created_at ASC",
+    [formId]
+  );
+
+  // Fetch all response files and encode them as base64
+  const responseIds = responses.map((r) => r.id);
+  const fileAttachments: Record<
+    string,
+    { fieldId: string; fileName: string; contentType: string; base64: string }[]
+  > = {};
+
+  if (responseIds.length > 0) {
+    // Fetch files in batches to avoid massive queries
+    const fileRows = await dbQuery<ResponseFileRow>(
+      c.env.DB,
+      `SELECT id, response_id, field_id, file_key, file_name, file_size, content_type
+       FROM response_files WHERE response_id IN (${responseIds.map(() => "?").join(",")})`,
+      responseIds
+    );
+
+    for (const fileRow of fileRows) {
+      let base64Data = "";
+      try {
+        const fileObj = await getFile(c.env.R2, fileRow.file_key);
+        if (fileObj) {
+          const buf = await fileObj.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          base64Data = btoa(binary);
+        }
+      } catch {
+        // Skip files that can't be read
+      }
+
+      if (!fileAttachments[fileRow.response_id]) {
+        fileAttachments[fileRow.response_id] = [];
+      }
+      fileAttachments[fileRow.response_id].push({
+        fieldId: fileRow.field_id,
+        fileName: fileRow.file_name,
+        contentType: fileRow.content_type ?? "application/octet-stream",
+        base64: base64Data,
+      });
+    }
+  }
+
+  // Also encode inline data that looks like file URLs (signatures, uploaded images)
+  const fields = JSON.parse(form.fields) as { id: string; type?: string }[];
+  const fileFieldIds = new Set(
+    fields.filter((f) => f.type === "file" || f.type === "signature").map((f) => f.id)
+  );
+
+  const serializedResponses = responses.map((r) => {
+    const data = JSON.parse(r.data) as Record<string, unknown>;
+    const metadata = JSON.parse(r.metadata);
+
+    // For signature fields that contain data URIs, keep them as-is
+    // For file fields with R2 URLs, they'll be in the fileAttachments
+    return {
+      data,
+      metadata,
+      submitterEmail: r.submitter_email,
+      isSpam: r.is_spam === 1,
+      createdAt: r.created_at,
+      files: fileAttachments[r.id] ?? [],
+    };
+  });
+
+  const exportPayload = {
+    _cloudyforms: "form-bundle",
+    _version: 1,
+    title: form.title,
+    description: form.description,
+    fields: JSON.parse(form.fields),
+    settings: JSON.parse(form.settings),
+    branding: JSON.parse(form.branding),
+    documentTemplate: form.document_template ? JSON.parse(form.document_template) : null,
+    accessType: form.access_type,
+    responses: serializedResponses,
+    exportedAt: new Date().toISOString(),
+  };
+
+  const filename = `${form.title.replace(/[^a-z0-9]/gi, "_")}-bundle.json`;
+
+  return new Response(JSON.stringify(exportPayload, null, 2), {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+});
+
+// ── Form import ────────────────────────────────────────────────────────────────
+
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80);
+}
+
+async function ensureUniqueSlug(db: D1Database, base: string): Promise<string> {
+  let slug = base;
+  let suffix = 0;
+  while (true) {
+    const existing = await dbQueryFirst<{ id: string }>(
+      db,
+      "SELECT id FROM forms WHERE slug = ?",
+      [slug]
+    );
+    if (!existing) return slug;
+    suffix += 1;
+    slug = `${base}-${suffix}`;
+  }
+}
+
+const importFormSchema = z.object({
+  orgId: z.string().min(1),
+  data: z.object({
+    _cloudyforms: z.enum(["form-config", "form-bundle"]),
+    _version: z.number(),
+    title: z.string().min(1),
+    description: z.string().nullable().optional(),
+    fields: z.array(z.any()),
+    settings: z.any().optional(),
+    branding: z.any().optional(),
+    documentTemplate: z.any().nullable().optional(),
+    accessType: z.enum(["public", "unlisted", "code", "kiosk_only"]).optional(),
+    responses: z.array(z.any()).optional(),
+    exportedAt: z.string().optional(),
+  }),
+  includeResponses: z.boolean().default(false),
+});
+
+exportRouter.post("/import", authMiddleware, zValidator("json", importFormSchema), async (c) => {
+  const user = c.get("user");
+  const body = c.req.valid("json");
+
+  const role = user.isSuperAdmin
+    ? "owner"
+    : await getUserOrgRole(c.env.DB, user.userId, body.orgId);
+
+  if (!role || role === "viewer") {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  const cfg = body.data;
+  const formId = generateId();
+  const slug = await ensureUniqueSlug(c.env.DB, slugify(cfg.title));
+  const now = new Date().toISOString();
+
+  const defaultSettings = {
+    submitButtonText: "Submit",
+    successMessage: "Thank you for your submission!",
+    allowMultipleSubmissions: true,
+    requireAuth: false,
+    sendReceiptEmail: false,
+    notificationEmails: [],
+    enableTurnstile: false,
+    kioskOnly: false,
+  };
+
+  const settings = JSON.stringify({ ...defaultSettings, ...(cfg.settings ?? {}) });
+  const branding = JSON.stringify(cfg.branding ?? {});
+  const fields = JSON.stringify(cfg.fields ?? []);
+  const documentTemplate = cfg.documentTemplate ? JSON.stringify(cfg.documentTemplate) : null;
+
+  await dbRun(
+    c.env.DB,
+    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      formId, body.orgId, cfg.title, cfg.description ?? null, slug,
+      cfg.accessType ?? "public", fields, settings, branding,
+      documentTemplate, user.userId, now, now,
+    ]
+  );
+
+  // Import responses if requested and available
+  let importedResponses = 0;
+  if (body.includeResponses && cfg.responses && cfg.responses.length > 0) {
+    for (const resp of cfg.responses) {
+      const respId = generateId();
+      const respData = JSON.stringify(resp.data ?? {});
+      const respMetadata = JSON.stringify(resp.metadata ?? {});
+
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO form_responses (id, form_id, data, metadata, submitter_email, fingerprint, is_spam, created_at)
+         VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+        [
+          respId, formId, respData, respMetadata,
+          resp.submitterEmail ?? null,
+          resp.isSpam ? 1 : 0,
+          resp.createdAt ?? now,
+        ]
+      );
+
+      // Import file attachments if present
+      if (resp.files && Array.isArray(resp.files)) {
+        for (const file of resp.files) {
+          if (file.base64 && file.fileName) {
+            const fileId = generateId();
+            const fileKey = `${generateId()}.${file.fileName.split(".").pop() ?? "bin"}`;
+
+            // Decode base64 and upload to R2
+            try {
+              const binaryStr = atob(file.base64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              await c.env.R2.put(fileKey, bytes.buffer, {
+                httpMetadata: { contentType: file.contentType ?? "application/octet-stream" },
+              });
+
+              await dbRun(
+                c.env.DB,
+                `INSERT INTO response_files (id, response_id, field_id, file_key, file_name, file_size, content_type, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  fileId, respId, file.fieldId ?? "", fileKey,
+                  file.fileName, bytes.length, file.contentType ?? "application/octet-stream", now,
+                ]
+              );
+            } catch {
+              // Skip files that fail to import
+            }
+          }
+        }
+      }
+
+      importedResponses++;
+    }
+  }
+
+  // Fetch the created form
+  const createdForm = await dbQueryFirst<FormRow>(
+    c.env.DB,
+    "SELECT * FROM forms WHERE id = ?",
+    [formId]
+  );
+
+  return c.json(
+    {
+      id: formId,
+      title: cfg.title,
+      slug,
+      importedResponses,
+      form: createdForm
+        ? {
+            id: createdForm.id,
+            orgId: createdForm.org_id,
+            title: createdForm.title,
+            description: createdForm.description,
+            slug: createdForm.slug,
+            status: createdForm.status,
+            accessType: createdForm.access_type,
+            fields: JSON.parse(createdForm.fields),
+            settings: JSON.parse(createdForm.settings),
+            branding: JSON.parse(createdForm.branding),
+            documentTemplate: createdForm.document_template
+              ? JSON.parse(createdForm.document_template)
+              : null,
+          }
+        : null,
+    },
+    201
+  );
 });
 
 export { exportRouter as exportRoutes };

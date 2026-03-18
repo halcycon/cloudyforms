@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, MoreHorizontal, Pencil, Eye, Copy, Trash2, Share2, BarChart2 } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Eye, Copy, Trash2, Share2, BarChart2, Download, Upload, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { forms as formsApi } from '@/lib/api';
+import { forms as formsApi, exportData } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { cn, formatDateShort } from '@/lib/utils';
+import { cn, formatDateShort, downloadFile } from '@/lib/utils';
 import type { Form } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,6 +53,11 @@ export default function FormsPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'updatedAt' | 'createdAt' | 'responseCount'>('updatedAt');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importIncludeResponses, setImportIncludeResponses] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadForms = useCallback(async () => {
     setLoading(true);
@@ -81,6 +96,59 @@ export default function FormsPage() {
     }
   }
 
+  async function handleExportConfig(id: string) {
+    try {
+      const json = await exportData.formConfig(id);
+      const form = formsList.find((f) => f.id === id);
+      downloadFile(json, `${form?.slug ?? id}-config.json`, 'application/json');
+      toast.success('Form configuration exported');
+    } catch {
+      toast.error('Export failed');
+    }
+  }
+
+  async function handleExportBundle(id: string) {
+    try {
+      const json = await exportData.formBundle(id);
+      const form = formsList.find((f) => f.id === id);
+      downloadFile(json, `${form?.slug ?? id}-bundle.json`, 'application/json');
+      toast.success('Form bundle exported (config + responses)');
+    } catch {
+      toast.error('Export failed');
+    }
+  }
+
+  async function handleImport() {
+    if (!importFile || !currentOrg?.id) return;
+    setImporting(true);
+    try {
+      const text = await importFile.text();
+      const data = JSON.parse(text);
+      if (!data._cloudyforms || !['form-config', 'form-bundle'].includes(data._cloudyforms)) {
+        toast.error('Invalid CloudyForms export file');
+        return;
+      }
+      const hasResponses = data._cloudyforms === 'form-bundle' && data.responses?.length > 0;
+      const result = await exportData.importForm(
+        currentOrg.id,
+        data,
+        importIncludeResponses && hasResponses,
+      );
+      setFormsList((prev) => [result.form, ...prev]);
+      toast.success(
+        `Form "${result.title}" imported${result.importedResponses > 0 ? ` with ${result.importedResponses} responses` : ''}`,
+      );
+      setShowImport(false);
+      setImportFile(null);
+      setImportIncludeResponses(false);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      toast.error(error.response?.data?.error ?? 'Import failed. Check the file format.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function copyShareLink(slug: string) {
     navigator.clipboard.writeText(`${window.location.origin}/f/${slug}`);
     toast.success('Link copied!');
@@ -104,10 +172,16 @@ export default function FormsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Forms</h1>
-        <Button onClick={() => navigate('/forms/new')}>
-          <Plus className="h-4 w-4" />
-          New Form
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4" />
+            Import
+          </Button>
+          <Button onClick={() => navigate('/forms/new')}>
+            <Plus className="h-4 w-4" />
+            New Form
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -198,6 +272,13 @@ export default function FormsPage() {
                         <Copy className="h-4 w-4" /> Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleExportConfig(form.id)}>
+                        <Download className="h-4 w-4" /> Export Config
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportBundle(form.id)}>
+                        <Package className="h-4 w-4" /> Export with Responses
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => setDeleteId(form.id)}
                         className="text-red-600 focus:text-red-600"
@@ -254,6 +335,91 @@ export default function FormsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import dialog */}
+      <Dialog open={showImport} onOpenChange={(o) => { if (!o) { setShowImport(false); setImportFile(null); setImportIncludeResponses(false); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Form</DialogTitle>
+            <DialogDescription>
+              Import a form from a CloudyForms export file (.json). You can import form configuration only or include responses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Export File</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setImportFile(file);
+                  if (file) {
+                    // Preview: check if it's a bundle with responses
+                    file.text().then((text) => {
+                      try {
+                        const data = JSON.parse(text);
+                        if (data._cloudyforms === 'form-bundle' && data.responses?.length > 0) {
+                          setImportIncludeResponses(true);
+                        }
+                      } catch { /* ignore */ }
+                    });
+                  }
+                }}
+              />
+              <div
+                className={cn(
+                  'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+                  importFile ? 'border-primary-300 bg-primary-50' : 'border-gray-300 hover:border-gray-400',
+                )}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {importFile ? (
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{importFile.name}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {(importFile.size / 1024).toFixed(1)} KB · Click to change
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">Click to select a .json export file</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {importFile && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Include Responses</Label>
+                  <p className="text-xs text-gray-500">Import submission data if the file contains responses</p>
+                </div>
+                <Switch
+                  checked={importIncludeResponses}
+                  onCheckedChange={setImportIncludeResponses}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowImport(false); setImportFile(null); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={!importFile}
+              loading={importing}
+            >
+              <Upload className="h-4 w-4" />
+              Import Form
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

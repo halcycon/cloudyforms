@@ -186,4 +186,74 @@ users.delete("/:userId", authMiddleware, async (c) => {
   return c.json({ message: "User deleted" });
 });
 
+// ── Platform Settings (super admin) ─────────────────────────────────────────
+
+// Get platform settings
+users.get("/admin/settings", authMiddleware, async (c) => {
+  const currentUser = c.get("user");
+  if (!currentUser.isSuperAdmin) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const rows = await dbQuery<{ key: string; value: string }>(
+    c.env.DB,
+    "SELECT key, value FROM platform_settings"
+  );
+
+  const settings: Record<string, unknown> = {};
+  for (const row of rows) {
+    try {
+      settings[row.key] = JSON.parse(row.value);
+    } catch {
+      settings[row.key] = row.value;
+    }
+  }
+
+  return c.json({
+    signupsEnabled: settings["signups_enabled"] ?? true,
+    allowedSignupDomains: settings["allowed_signup_domains"] ?? [],
+  });
+});
+
+const updateSettingsSchema = z.object({
+  signupsEnabled: z.boolean().optional(),
+  allowedSignupDomains: z.array(z.string()).optional(),
+});
+
+// Update platform settings
+users.put(
+  "/admin/settings",
+  authMiddleware,
+  zValidator("json", updateSettingsSchema),
+  async (c) => {
+    const currentUser = c.get("user");
+    if (!currentUser.isSuperAdmin) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const updates = c.req.valid("json");
+    const now = new Date().toISOString();
+
+    if (updates.signupsEnabled !== undefined) {
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO platform_settings (key, value, updated_at) VALUES ('signups_enabled', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [String(updates.signupsEnabled), now]
+      );
+    }
+
+    if (updates.allowedSignupDomains !== undefined) {
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO platform_settings (key, value, updated_at) VALUES ('allowed_signup_domains', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [JSON.stringify(updates.allowedSignupDomains), now]
+      );
+    }
+
+    return c.json({ message: "Settings updated" });
+  }
+);
+
 export { users as userRoutes };

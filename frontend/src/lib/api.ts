@@ -72,6 +72,9 @@ export const auth = {
 
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ message: string }>('/auth/change-password', { currentPassword, newPassword }),
+
+  signupStatus: () =>
+    get<{ signupsEnabled: boolean; allowedDomains: string[] }>('/auth/signup-status'),
 };
 
 // Organizations
@@ -160,18 +163,34 @@ export const responses = {
 export const exportData = {
   formCSV: (formId: string) =>
     apiClient
-      .get(`/forms/${formId}/export/csv`, { responseType: 'text' })
+      .get(`/export/form/${formId}/csv`, { responseType: 'text' })
       .then((r) => r.data as string),
 
   formJSON: (formId: string) =>
     apiClient
-      .get(`/forms/${formId}/export/json`, { responseType: 'text' })
+      .get(`/export/form/${formId}/json`, { responseType: 'text' })
+      .then((r) => r.data as string),
+
+  formConfig: (formId: string) =>
+    apiClient
+      .get(`/export/form/${formId}/config`, { responseType: 'text' })
+      .then((r) => r.data as string),
+
+  formBundle: (formId: string) =>
+    apiClient
+      .get(`/export/form/${formId}/bundle`, { responseType: 'text' })
       .then((r) => r.data as string),
 
   responsePdf: (responseId: string) =>
     apiClient
       .get(`/export/response/${responseId}/pdf`, { responseType: 'blob' })
       .then((r) => r.data as Blob),
+
+  importForm: (orgId: string, data: Record<string, unknown>, includeResponses: boolean) =>
+    post<{ id: string; title: string; slug: string; importedResponses: number; form: Form }>(
+      '/export/import',
+      { orgId, data, includeResponses },
+    ),
 };
 
 // Files
@@ -232,6 +251,10 @@ export const admin = {
   listDomains: () => get<CustomDomain[]>('/admin/domains'),
   verifyDomain: (id: string) => patch<{ message: string }>(`/admin/domains/${id}/verify`),
   deleteDomain: (id: string) => del<{ message: string }>(`/admin/domains/${id}`),
+  getSettings: () =>
+    get<{ signupsEnabled: boolean; allowedSignupDomains: string[] }>('/users/admin/settings'),
+  updateSettings: (data: { signupsEnabled?: boolean; allowedSignupDomains?: string[] }) =>
+    apiClient.put('/users/admin/settings', data).then((r) => r.data as { message: string }),
 };
 
 // Custom domains (per-org)

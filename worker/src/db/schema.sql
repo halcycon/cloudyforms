@@ -144,6 +144,13 @@ CREATE TABLE IF NOT EXISTS custom_domains (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Platform Settings (key-value store for global configuration)
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_forms_org_id ON forms(org_id);
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);

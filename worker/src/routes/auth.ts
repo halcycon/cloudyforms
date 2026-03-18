@@ -34,8 +34,48 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8).max(72),
 });
 
+// Public endpoint: check whether new signups are allowed
+auth.get("/signup-status", async (c) => {
+  const enabled = await dbQueryFirst<{ value: string }>(
+    c.env.DB,
+    "SELECT value FROM platform_settings WHERE key = 'signups_enabled'",
+  );
+  const domains = await dbQueryFirst<{ value: string }>(
+    c.env.DB,
+    "SELECT value FROM platform_settings WHERE key = 'allowed_signup_domains'",
+  );
+  return c.json({
+    signupsEnabled: enabled ? enabled.value === "true" : true,
+    allowedDomains: domains?.value ? JSON.parse(domains.value) as string[] : [],
+  });
+});
+
 auth.post("/register", zValidator("json", registerSchema), async (c) => {
   const { name, email, password } = c.req.valid("json");
+
+  // Check if signups are disabled
+  const signupsSetting = await dbQueryFirst<{ value: string }>(
+    c.env.DB,
+    "SELECT value FROM platform_settings WHERE key = 'signups_enabled'",
+  );
+  if (signupsSetting && signupsSetting.value === "false") {
+    return c.json({ error: "New account registration is currently disabled" }, 403);
+  }
+
+  // Check allowed email domains
+  const domainsSetting = await dbQueryFirst<{ value: string }>(
+    c.env.DB,
+    "SELECT value FROM platform_settings WHERE key = 'allowed_signup_domains'",
+  );
+  if (domainsSetting?.value) {
+    const allowedDomains = JSON.parse(domainsSetting.value) as string[];
+    if (allowedDomains.length > 0) {
+      const emailDomain = email.toLowerCase().split("@")[1];
+      if (!emailDomain || !allowedDomains.some((d) => d.toLowerCase() === emailDomain)) {
+        return c.json({ error: "Registration is restricted to certain email domains" }, 403);
+      }
+    }
+  }
 
   const existing = await dbQueryFirst<{ id: string }>(
     c.env.DB,

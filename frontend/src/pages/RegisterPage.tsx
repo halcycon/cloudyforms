@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { CloudLightning } from 'lucide-react';
+import { CloudLightning, ShieldX } from 'lucide-react';
 import { auth } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,21 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { setUser, setToken } = useStore();
   const [loading, setLoading] = useState(false);
+  const [signupsEnabled, setSignupsEnabled] = useState(true);
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  useEffect(() => {
+    auth.signupStatus()
+      .then((status) => {
+        setSignupsEnabled(status.signupsEnabled);
+        setAllowedDomains(status.allowedDomains);
+      })
+      .catch(() => {
+        // If the endpoint fails, assume signups are enabled (backwards compat)
+      })
+      .finally(() => setCheckingStatus(false));
+  }, []);
 
   const {
     register,
@@ -51,6 +66,44 @@ export default function RegisterPage() {
     }
   }
 
+  if (checkingStatus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!signupsEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <CloudLightning className="h-8 w-8 text-primary-600" />
+            <span className="text-2xl font-bold text-gray-900">CloudyForms</span>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center text-center py-4">
+                <ShieldX className="h-12 w-12 text-gray-400 mb-3" />
+                <h2 className="text-lg font-semibold text-gray-900">Registration Disabled</h2>
+                <p className="text-sm text-gray-500 mt-2">
+                  New account registration is currently disabled. Please contact your administrator for access.
+                </p>
+                <Link
+                  to="/login"
+                  className="mt-4 text-primary-600 hover:underline font-medium text-sm"
+                >
+                  Back to sign in
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -65,6 +118,12 @@ export default function RegisterPage() {
             <CardDescription>Start building forms for free</CardDescription>
           </CardHeader>
           <CardContent>
+            {allowedDomains.length > 0 && (
+              <div className="mb-4 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700">
+                Registration is limited to: {allowedDomains.join(', ')}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-1.5">
                 <Label required>Full Name</Label>

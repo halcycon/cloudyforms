@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { admin } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Building2, FileText, MessageSquare, Globe } from 'lucide-react';
+import { Shield, Users, Building2, FileText, MessageSquare, Globe, UserPlus, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import toast from 'react-hot-toast';
 
 interface AdminStats {
   users: number;
@@ -18,17 +23,67 @@ export default function AdminPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signupsEnabled, setSignupsEnabled] = useState(true);
+  const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
+  const [newDomain, setNewDomain] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     if (!user?.isSuperAdmin) {
       navigate('/dashboard');
       return;
     }
-    admin.stats()
-      .then(setStats)
+    Promise.all([
+      admin.stats(),
+      admin.getSettings(),
+    ])
+      .then(([statsData, settings]) => {
+        setStats(statsData);
+        setSignupsEnabled(settings.signupsEnabled);
+        setAllowedDomains(settings.allowedSignupDomains);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, navigate]);
+
+  async function saveSignupSettings(enabled: boolean, domains: string[]) {
+    setSavingSettings(true);
+    try {
+      await admin.updateSettings({
+        signupsEnabled: enabled,
+        allowedSignupDomains: domains,
+      });
+      toast.success('Settings saved');
+    } catch {
+      toast.error('Failed to save settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  function handleToggleSignups(enabled: boolean) {
+    setSignupsEnabled(enabled);
+    saveSignupSettings(enabled, allowedDomains);
+  }
+
+  function handleAddDomain() {
+    const domain = newDomain.trim().toLowerCase();
+    if (!domain) return;
+    if (allowedDomains.includes(domain)) {
+      toast.error('Domain already added');
+      return;
+    }
+    const updated = [...allowedDomains, domain];
+    setAllowedDomains(updated);
+    setNewDomain('');
+    saveSignupSettings(signupsEnabled, updated);
+  }
+
+  function handleRemoveDomain(domain: string) {
+    const updated = allowedDomains.filter((d) => d !== domain);
+    setAllowedDomains(updated);
+    saveSignupSettings(signupsEnabled, updated);
+  }
 
   const statCards = [
     { label: 'Total Users', value: stats?.users, icon: <Users className="h-5 w-5" />, color: 'text-blue-600 bg-blue-50' },
@@ -61,6 +116,70 @@ export default function AdminPage() {
           </Card>
         ))}
       </div>
+
+      {/* Signup Settings */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-gray-600" />
+            <CardTitle className="text-base">Registration Settings</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Allow New Signups</Label>
+              <p className="text-xs text-gray-500 mt-0.5">
+                When disabled, no new users can register. Existing users can still sign in.
+              </p>
+            </div>
+            <Switch
+              checked={signupsEnabled}
+              onCheckedChange={handleToggleSignups}
+              disabled={savingSettings}
+            />
+          </div>
+
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium">Allowed Email Domains</Label>
+            <p className="text-xs text-gray-500 mt-0.5 mb-3">
+              Leave empty to allow all domains. When set, only emails from these domains can register.
+            </p>
+            <div className="flex gap-2 mb-3">
+              <Input
+                placeholder="example.com"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDomain())}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddDomain}
+                disabled={!newDomain.trim() || savingSettings}
+              >
+                Add
+              </Button>
+            </div>
+            {allowedDomains.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {allowedDomains.map((domain) => (
+                  <Badge key={domain} variant="secondary" className="gap-1 pr-1">
+                    {domain}
+                    <button
+                      onClick={() => handleRemoveDomain(domain)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-gray-300/50"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

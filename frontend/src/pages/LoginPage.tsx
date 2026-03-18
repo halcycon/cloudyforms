@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,13 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { setUser, setToken } = useStore();
   const [loading, setLoading] = useState(false);
+  const [signupsEnabled, setSignupsEnabled] = useState(true);
+
+  useEffect(() => {
+    auth.signupStatus()
+      .then((status) => setSignupsEnabled(status.signupsEnabled))
+      .catch(() => {});
+  }, []);
 
   const {
     register,
@@ -89,12 +96,14 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <p className="mt-4 text-center text-sm text-gray-500">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary-600 hover:underline font-medium">
-                Create one
-              </Link>
-            </p>
+            {signupsEnabled && (
+              <p className="mt-4 text-center text-sm text-gray-500">
+                Don't have an account?{' '}
+                <Link to="/register" className="text-primary-600 hover:underline font-medium">
+                  Create one
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
