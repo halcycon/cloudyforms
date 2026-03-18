@@ -11,7 +11,7 @@
  */
 
 import { useState } from 'react';
-import { Copy, Check, Code2, Link2, Braces } from 'lucide-react';
+import { Copy, Check, Code2, Link2, Braces, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -122,6 +122,24 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
   });
 </script>`;
 
+  const hugoShortcodeFile = `{{/* layouts/shortcodes/cloudyforms.html */}}
+{{- $slug  := .Get "slug" | default (.Get 0) -}}
+{{- $theme := .Get "theme" | default "" -}}
+{{- $base  := site.Params.cloudyformsUrl | default "${origin}" -}}
+{{- if $slug -}}
+<div
+  data-cloudyforms="{{ $slug }}"
+  {{- if $theme }} data-theme="{{ $theme }}"{{ end }}
+  style="min-height:200px;"
+></div>
+{{- if not (.Page.Scratch.Get "cloudyforms-script-loaded") -}}
+  {{- .Page.Scratch.Set "cloudyforms-script-loaded" true -}}
+  <script src="{{ $base }}/api/embed/script.js" defer></script>
+{{- end -}}
+{{- end -}}`;
+
+  const hugoUsageSnippet = `{{</* cloudyforms slug="${formSlug}" */>}}`;
+
   return (
     <div className="space-y-4">
       {/* Direct link */}
@@ -143,11 +161,15 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
         </div>
 
         <Tabs defaultValue="iframe">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="iframe">iframe</TabsTrigger>
             <TabsTrigger value="js">
               <Braces className="h-3.5 w-3.5 mr-1" />
               JS Widget
+            </TabsTrigger>
+            <TabsTrigger value="hugo">
+              <FileCode className="h-3.5 w-3.5 mr-1" />
+              Hugo / SSG
             </TabsTrigger>
           </TabsList>
 
@@ -182,6 +204,52 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
             <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700">
               <strong>Tip:</strong> The script tag only needs to be added once per page even
               if you are embedding multiple forms.
+            </div>
+          </TabsContent>
+
+          {/* Hugo / SSG */}
+          <TabsContent value="hugo" className="mt-3 space-y-3">
+            <p className="text-xs text-gray-500">
+              Create a reusable Hugo shortcode, then embed forms from any markdown
+              content file. Works with Turbo, PJAX, and other SPA-like navigation.
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-gray-600">
+                1. Save this as <code className="rounded bg-gray-100 px-1 font-mono text-[11px]">layouts/shortcodes/cloudyforms.html</code>
+              </p>
+              <CodeBlock code={hugoShortcodeFile} language="html" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-gray-600">
+                2. Use in any markdown file
+              </p>
+              <CodeBlock code={hugoUsageSnippet} language="markdown" />
+            </div>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+                Other static site generators
+              </summary>
+              <div className="mt-2 space-y-2">
+                <p className="text-xs text-gray-500">
+                  The JS Widget approach works with any SSG (Astro, Jekyll,
+                  Eleventy, Gatsby, etc.). The embed script automatically detects
+                  new <code className="rounded bg-gray-100 px-1 font-mono text-[11px]">data-cloudyforms</code> elements
+                  added to the DOM — even after client-side navigation.
+                </p>
+                <CodeBlock code={jsSnippet} language="html" />
+              </div>
+            </details>
+            <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700">
+              <strong>Tip:</strong> See{' '}
+              <a
+                href="https://github.com/halcycon/cloudyforms/blob/main/docs/embedding.md#hugo-static-sites"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                docs/embedding.md
+              </a>{' '}
+              for full Hugo setup instructions including <code className="font-mono">hugo.toml</code> configuration.
             </div>
           </TabsContent>
         </Tabs>
