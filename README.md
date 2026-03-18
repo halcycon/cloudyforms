@@ -1,12 +1,37 @@
 # CloudyForms
 
-Open-source form-building platform that runs entirely on **Cloudflare Workers + Pages + D1 + R2**.  
-Inspired by Formbricks. Multi-tenant, white-label, embeddable, kiosk-ready.
+> Open-source form-building platform that runs entirely on **Cloudflare Workers + Pages + D1 + R2**  
+> Inspired by Formbricks. **Multi-tenant, white-label, embeddable, kiosk-ready.**
+
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)
+![Cloudflare Pages](https://img.shields.io/badge/Cloudflare-Pages-F38020?logo=cloudflare&logoColor=white)
+![License](https://img.shields.io/github/license/YOURUSER/YOURREPO)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20development-ff5f5f?logo=ko-fi&logoColor=white)](https://ko-fi.com/thecuckoocamp)
+[![More Links](https://img.shields.io/badge/Links-thecuckoocamp.co.uk-blue)](https://links.thecuckoocamp.co.uk/@cuckooadam)
+
+---
+
+### Highlights
+
+- 🚀 **Fully serverless deployment**
+- 🆓 **Works within Cloudflare free tier**
+- 🔒 **Your data stays in your Cloudflare account**
+- 🧩 **Embeddable forms for any website**
+- 🏷 **Multi-tenant + white-label support**
+- 🖥 **Kiosk-ready deployments**
+
+---
+
+If there is interest in a **hosted / managed ("enterprise") version** of CloudyForms, I'm open to exploring that.  
+Feel free to reach out via the links above if you'd like to discuss it.
 
 ---
 
 ## Table of Contents
 
+0. [About](#about)
 1. [Features](#features)
 2. [Architecture](#architecture)
 3. [Prerequisites](#prerequisites)
@@ -20,6 +45,46 @@ Inspired by Formbricks. Multi-tenant, white-label, embeddable, kiosk-ready.
 11. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
 12. [Free vs Paid Tier](#free-vs-paid-tier)
 13. [Development](#development)
+
+---
+
+## About
+
+CloudyForms was built as a **self-hosted alternative to Google Forms, Formbricks and similar platforms**, designed specifically for the **Cloudflare serverless ecosystem**.
+
+It allows you to deploy a full form platform using only:
+
+- **Cloudflare Workers**
+- **Cloudflare Pages**
+- **Cloudflare D1**
+- **Cloudflare R2**
+
+— while remaining **compatible with the Cloudflare free tier**.
+
+The project is intended to be easy to fork, easy to deploy, and simple to embed into existing sites.
+
+Suggestions, issues and pull requests are very welcome.
+
+---
+
+### Support the Project
+
+If you find CloudyForms useful and would like to support development:
+
+☕ **Buy me a coffee**  
+https://ko-fi.com/thecuckoocamp
+
+---
+
+### About the Author
+
+I'm an independent developer working on open-source tools around **privacy, self-hosting and serverless infrastructure**.
+
+I'm currently **between projects and focusing on building useful open-source tools**, so if this project helps you, sharing it or supporting development is hugely appreciated.
+
+You can find my other projects and links here:
+
+🔗 https://links.thecuckoocamp.co.uk/@cuckooadam
 
 ---
 
