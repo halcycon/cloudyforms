@@ -279,6 +279,10 @@ exportRouter.get("/response/:responseId/json", authMiddleware, async (c) => {
 
 // ── PDF generation helpers ─────────────────────────────────────────────────────
 
+// A4 page dimensions in PDF points (1 point = 1/72 inch)
+const A4_WIDTH_POINTS = 595.28;
+const A4_HEIGHT_POINTS = 841.89;
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace("#", "");
   return {
@@ -286,6 +290,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     g: parseInt(clean.substring(2, 4), 16) / 255,
     b: parseInt(clean.substring(4, 6), 16) / 255,
   };
+}
+
+function isTruthyValue(value: string): boolean {
+  const lower = value.toLowerCase().trim();
+  return ["true", "yes", "1", "on", "checked"].includes(lower);
 }
 
 function getFieldValue(
@@ -325,7 +334,7 @@ async function generatePdfFromTemplate(
             // Field might not exist or might not be a text field; try checkbox
             try {
               const checkBox = pdfForm.getCheckBox(mapping.pdfFieldName);
-              if (value === "true" || value === "yes" || value === "1") {
+              if (isTruthyValue(value)) {
                 checkBox.check();
               } else {
                 checkBox.uncheck();
@@ -400,8 +409,8 @@ async function generatePdfFromMarkdown(
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  const pageWidth = 595.28; // A4
-  const pageHeight = 841.89;
+  const pageWidth = A4_WIDTH_POINTS;
+  const pageHeight = A4_HEIGHT_POINTS;
   const margin = 50;
   const contentWidth = pageWidth - 2 * margin;
 
@@ -591,7 +600,7 @@ exportRouter.get("/response/:responseId/pdf", authMiddleware, async (c) => {
     return c.json({ error: "Unknown template type" }, 400);
   }
 
-  const filename = `${row.title.replace(/[^a-z0-9]/gi, "_")}-response-${responseId}.pdf`;
+  const filename = `${row.title.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "")}-response-${responseId}.pdf`;
 
   return new Response(pdfResult, {
     headers: {

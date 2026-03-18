@@ -13,7 +13,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2, FileText } from 'lucide-react';
-import type { Form, FormField, FieldType, FormSettings, BrandingConfig, DocumentTemplate } from '@/lib/types';
+import type { Form, FormField, FieldType, FormSettings, BrandingConfig } from '@/lib/types';
 import { forms as formsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { cn, generateSlug as _generateSlug } from '@/lib/utils';

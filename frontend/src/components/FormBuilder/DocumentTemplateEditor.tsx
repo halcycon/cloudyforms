@@ -23,7 +23,11 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+// A4 page dimensions in PDF points (1 point = 1/72 inch)
+const A4_WIDTH_POINTS = 595.28;
+const A4_HEIGHT_POINTS = 841.89;
 
 interface DocumentTemplateEditorProps {
   template: DocumentTemplate | null;
@@ -111,14 +115,13 @@ export function DocumentTemplateEditor({
 
   function handlePdfClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!pdfContainerRef.current) return;
-    const rect = pdfContainerRef.current.getBoundingClientRect();
     // Find the rendered page canvas to get exact coordinates
     const canvas = pdfContainerRef.current.querySelector('canvas');
     if (!canvas) return;
 
     const canvasRect = canvas.getBoundingClientRect();
-    const scaleX = 595.28 / canvasRect.width; // A4 width in points
-    const scaleY = 841.89 / canvasRect.height; // A4 height in points
+    const scaleX = A4_WIDTH_POINTS / canvasRect.width;
+    const scaleY = A4_HEIGHT_POINTS / canvasRect.height;
 
     const x = (e.clientX - canvasRect.left) * scaleX;
     const y = (e.clientY - canvasRect.top) * scaleY;
@@ -209,8 +212,8 @@ export function DocumentTemplateEditor({
 
     const canvasRect = canvas.getBoundingClientRect();
     const containerRect = pdfContainerRef.current.getBoundingClientRect();
-    const scaleX = canvasRect.width / 595.28;
-    const scaleY = canvasRect.height / 841.89;
+    const scaleX = canvasRect.width / A4_WIDTH_POINTS;
+    const scaleY = canvasRect.height / A4_HEIGHT_POINTS;
     const offsetX = canvasRect.left - containerRect.left;
     const offsetY = canvasRect.top - containerRect.top;
 
