@@ -128,6 +128,46 @@ const updateFormSchema = z.object({
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+interface OptionListRow {
+  id: string;
+  options: string;
+}
+
+/**
+ * Resolve option list references in form fields.
+ * If a field has `optionListId`, fetch the options from the option_lists table
+ * and merge them into the field's options array.
+ */
+async function resolveOptionListReferences(
+  db: D1Database,
+  fields: Array<{ optionListId?: string; options?: { label: string; value: string }[] }>
+) {
+  const listIds = fields
+    .map((f) => f.optionListId)
+    .filter((id): id is string => !!id);
+
+  if (listIds.length === 0) return;
+
+  const unique = [...new Set(listIds)];
+  const placeholders = unique.map(() => "?").join(", ");
+  const rows = await dbQuery<OptionListRow>(
+    db,
+    `SELECT id, options FROM option_lists WHERE id IN (${placeholders})`,
+    unique
+  );
+
+  const listMap = new Map<string, { label: string; value: string }[]>();
+  for (const row of rows) {
+    listMap.set(row.id, JSON.parse(row.options));
+  }
+
+  for (const field of fields) {
+    if (field.optionListId && listMap.has(field.optionListId)) {
+      field.options = listMap.get(field.optionListId)!;
+    }
+  }
+}
+
 export function slugify(title: string): string {
   return title
     .toLowerCase()
@@ -227,6 +267,9 @@ forms.get("/public/:formSlug", async (c) => {
   if (form.access_code) {
     result.accessCode = undefined as unknown as null;
   }
+
+  // Resolve option list references: replace optionListId with actual options
+  await resolveOptionListReferences(c.env.DB, result.fields);
 
   return c.json(result);
 });

@@ -84,6 +84,7 @@ export interface FormField {
     }[];
     logicType: 'all' | 'any';
   };
+  optionListId?: string;
 }
 
 export interface FormSettings {
@@ -151,6 +152,16 @@ export interface FieldGroup {
   description?: string;
   fields: FormField[];
   createdAt: string;
+}
+
+export interface OptionList {
+  id: string;
+  orgId?: string;
+  name: string;
+  description?: string;
+  options: { label: string; value: string }[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Kiosk {

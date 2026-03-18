@@ -10,6 +10,7 @@ import type {
   DocumentTemplate,
   FormResponse,
   FieldGroup,
+  OptionList,
   Kiosk,
   CustomDomain,
 } from './types';
@@ -241,6 +242,24 @@ export const fieldGroups = {
   ) => patch<FieldGroup>(`/field-groups/${id}`, data),
 
   delete: (id: string) => del<{ message: string }>(`/field-groups/${id}`),
+};
+
+// Option Lists
+export const optionLists = {
+  list: (orgId?: string) =>
+    get<OptionList[]>('/option-lists', orgId ? { orgId } : undefined),
+
+  create: (data: { orgId?: string; name: string; description?: string; options: { label: string; value: string }[] }) =>
+    post<OptionList>('/option-lists', data),
+
+  get: (id: string) => get<OptionList>(`/option-lists/${id}`),
+
+  update: (
+    id: string,
+    data: Partial<Pick<OptionList, 'name' | 'description' | 'options'>>,
+  ) => patch<OptionList>(`/option-lists/${id}`, data),
+
+  delete: (id: string) => del<{ message: string }>(`/option-lists/${id}`),
 };
 
 // Admin
