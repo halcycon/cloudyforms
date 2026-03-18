@@ -129,6 +129,20 @@ CREATE TABLE IF NOT EXISTS acl_rules (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Custom Domains (multiple domains per organisation)
+-- Each record maps a verified domain to an organisation.
+-- The global admin creates these; org admins can request them.
+CREATE TABLE IF NOT EXISTS custom_domains (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  domain TEXT UNIQUE NOT NULL,         -- e.g. "forms.example.com"
+  verified INTEGER DEFAULT 0,          -- 1 once DNS TXT record confirmed
+  verification_token TEXT NOT NULL,    -- random token placed in DNS TXT
+  is_primary INTEGER DEFAULT 0,        -- at most one primary per org
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_forms_org_id ON forms(org_id);
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
@@ -140,3 +154,5 @@ CREATE INDEX IF NOT EXISTS idx_kiosks_token ON kiosks(token);
 CREATE INDEX IF NOT EXISTS idx_webhooks_form_id ON webhooks(form_id);
 CREATE INDEX IF NOT EXISTS idx_field_groups_org_id ON field_groups(org_id);
 CREATE INDEX IF NOT EXISTS idx_response_files_response_id ON response_files(response_id);
+CREATE INDEX IF NOT EXISTS idx_custom_domains_domain ON custom_domains(domain);
+CREATE INDEX IF NOT EXISTS idx_custom_domains_org ON custom_domains(org_id);

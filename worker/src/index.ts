@@ -10,6 +10,9 @@ import { fieldGroupRoutes } from "./routes/field-groups";
 import { userRoutes } from "./routes/users";
 import { exportRoutes } from "./routes/export";
 import { fileRoutes } from "./routes/files";
+import { orgDomainRoutes, adminDomainRoutes } from "./routes/domains";
+import { embedRoutes } from "./routes/embed";
+import { domainMiddleware } from "./middleware/domain";
 
 export type Bindings = {
   DB: D1Database;
@@ -24,21 +27,35 @@ export type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// CORS
+// Domain routing middleware – runs before everything else.
+// Resolves custom Host headers to an orgId for white-label deployments.
+app.use("*", domainMiddleware);
+
+// CORS – embed requests may come from any origin; we allow them all while
+// keeping credentials restricted to the canonical allowed-origins list.
 app.use("*", async (c, next) => {
   const allowedOrigins = c.env.ALLOWED_ORIGINS
     ? c.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
     : ["*"];
 
   const origin = c.req.header("Origin") ?? "";
+
+  // Embed routes and the public script must allow cross-origin requests.
+  const isEmbedRoute =
+    c.req.path.startsWith("/embed/") ||
+    c.req.path.startsWith("/api/embed/") ||
+    c.req.path.startsWith("/f/");
+
   const isAllowed =
-    allowedOrigins.includes("*") || allowedOrigins.includes(origin);
+    isEmbedRoute ||
+    allowedOrigins.includes("*") ||
+    allowedOrigins.includes(origin);
 
   return cors({
     origin: isAllowed ? origin || "*" : allowedOrigins[0] ?? "*",
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Cloudyforms-Token"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    credentials: true,
+    credentials: !isEmbedRoute, // no credentials for embed (cross-origin)
     maxAge: 86400,
   })(c, next);
 });
@@ -49,6 +66,7 @@ app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOStri
 // Routes
 app.route("/api/auth", authRoutes);
 app.route("/api/orgs", orgRoutes);
+app.route("/api/orgs", orgDomainRoutes);   // domain sub-routes under /api/orgs/:orgId/domains
 app.route("/api/forms", formRoutes);
 app.route("/api/responses", responseRoutes);
 app.route("/api/kiosk", kioskRoutes);
@@ -57,6 +75,8 @@ app.route("/api/field-groups", fieldGroupRoutes);
 app.route("/api/users", userRoutes);
 app.route("/api/export", exportRoutes);
 app.route("/api/files", fileRoutes);
+app.route("/api/embed", embedRoutes);
+app.route("/api/admin/domains", adminDomainRoutes);
 
 // Global error handler
 app.onError((err, c) => {

@@ -12,7 +12,7 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush } from 'lucide-react';
+import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2 } from 'lucide-react';
 import type { Form, FormField, FieldType, FormSettings, BrandingConfig } from '@/lib/types';
 import { forms as formsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
@@ -26,6 +26,7 @@ import { FieldEditor } from './FieldEditor';
 import { FormSettings as FormSettingsPanel } from './FormSettings';
 import { BrandingSettings } from './BrandingSettings';
 import { FieldPreview } from './FieldPreview';
+import { EmbedCode } from './EmbedCode';
 
 interface FormBuilderProps {
   formId?: string;
@@ -85,7 +86,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
     branding: DEFAULT_BRANDING,
   });
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'fields' | 'settings' | 'branding'>('fields');
+  const [activeTab, setActiveTab] = useState<'fields' | 'settings' | 'branding' | 'embed'>('fields');
   const [dragOverlayField, setDragOverlayField] = useState<FormField | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -364,7 +365,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
           {/* Left: palette + tabs */}
           <div className="w-56 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex flex-col h-full">
-              <TabsList className="m-2 grid w-auto grid-cols-3">
+              <TabsList className="m-2 grid w-auto grid-cols-4">
                 <TabsTrigger value="fields" title="Fields">
                   <Settings className="h-3.5 w-3.5" />
                 </TabsTrigger>
@@ -373,6 +374,9 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 </TabsTrigger>
                 <TabsTrigger value="branding" title="Branding">
                   <Paintbrush className="h-3.5 w-3.5" />
+                </TabsTrigger>
+                <TabsTrigger value="embed" title="Embed" disabled={!form.id}>
+                  <Code2 className="h-3.5 w-3.5" />
                 </TabsTrigger>
               </TabsList>
 
@@ -393,6 +397,16 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                   branding={form.branding ?? DEFAULT_BRANDING}
                   onChange={(branding) => updateForm({ branding })}
                 />
+              </TabsContent>
+
+              <TabsContent value="embed" className="flex-1 overflow-auto mt-0 p-3">
+                {form.id && form.slug ? (
+                  <EmbedCode formSlug={form.slug} formTitle={form.title} />
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-center p-4">
+                    <p className="text-xs text-gray-400">Save the form first to get embed code.</p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>

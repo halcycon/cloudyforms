@@ -17,12 +17,15 @@ import CreateOrgPage from '@/pages/CreateOrgPage';
 import OrgDetailPage from '@/pages/OrgDetailPage';
 import OrgMembersPage from '@/pages/OrgMembersPage';
 import OrgSettingsPage from '@/pages/OrgSettingsPage';
+import OrgDomainsPage from '@/pages/OrgDomainsPage';
 import FieldGroupsPage from '@/pages/FieldGroupsPage';
 import KioskSetupPage from '@/pages/KioskSetupPage';
 import KioskPage from '@/pages/KioskPage';
 import PublicFormPage from '@/pages/PublicFormPage';
+import EmbedFormPage from '@/pages/EmbedFormPage';
 import SettingsPage from '@/pages/SettingsPage';
 import AdminPage from '@/pages/AdminPage';
+import AdminDomainsPage from '@/pages/AdminDomainsPage';
 
 function AuthLoader({ children }: { children: React.ReactNode }) {
   const { token, user, setUser, logout } = useStore();
@@ -54,6 +57,8 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/f/:slug" element={<PublicFormPage />} />
+        {/* Minimal embed page – optimised for iframes, no navigation chrome */}
+        <Route path="/embed/:slug" element={<EmbedFormPage />} />
         <Route path="/kiosk/:token" element={<KioskPage />} />
 
         {/* Protected: Form builder (no layout, fullscreen) */}
@@ -83,6 +88,7 @@ export default function App() {
         <Route path="/orgs/:orgId" element={<WithLayout><OrgDetailPage /></WithLayout>} />
         <Route path="/orgs/:orgId/members" element={<WithLayout><OrgMembersPage /></WithLayout>} />
         <Route path="/orgs/:orgId/settings" element={<WithLayout><OrgSettingsPage /></WithLayout>} />
+        <Route path="/orgs/:orgId/domains" element={<WithLayout><OrgDomainsPage /></WithLayout>} />
         <Route path="/field-groups" element={<WithLayout><FieldGroupsPage /></WithLayout>} />
         <Route path="/kiosk-setup" element={<WithLayout><KioskSetupPage /></WithLayout>} />
         <Route path="/settings" element={<WithLayout><SettingsPage /></WithLayout>} />
@@ -91,6 +97,14 @@ export default function App() {
           element={
             <ProtectedRoute requireSuperAdmin>
               <Layout><AdminPage /></Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/domains"
+          element={
+            <ProtectedRoute requireSuperAdmin>
+              <Layout><AdminDomainsPage /></Layout>
             </ProtectedRoute>
           }
         />

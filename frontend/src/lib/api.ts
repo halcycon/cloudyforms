@@ -10,6 +10,7 @@ import type {
   FormResponse,
   FieldGroup,
   Kiosk,
+  CustomDomain,
 } from './types';
 
 const apiClient = axios.create({
@@ -206,6 +207,27 @@ export const admin = {
   listUsers: () => get<User[]>('/admin/users'),
   listOrgs: () => get<Organization[]>('/admin/orgs'),
   stats: () => get<{ users: number; orgs: number; forms: number; responses: number }>('/admin/stats'),
+  listDomains: () => get<CustomDomain[]>('/admin/domains'),
+  verifyDomain: (id: string) => patch<{ message: string }>(`/admin/domains/${id}/verify`),
+  deleteDomain: (id: string) => del<{ message: string }>(`/admin/domains/${id}`),
+};
+
+// Custom domains (per-org)
+export const domains = {
+  list: (orgId: string) =>
+    get<CustomDomain[]>(`/orgs/${orgId}/domains`),
+
+  add: (orgId: string, domain: string) =>
+    post<CustomDomain>(`/orgs/${orgId}/domains`, { domain }),
+
+  verify: (orgId: string, domainId: string) =>
+    post<{ verified: boolean; message: string }>(`/orgs/${orgId}/domains/${domainId}/verify`),
+
+  setPrimary: (orgId: string, domainId: string) =>
+    patch<{ message: string }>(`/orgs/${orgId}/domains/${domainId}/primary`),
+
+  remove: (orgId: string, domainId: string) =>
+    del<{ message: string }>(`/orgs/${orgId}/domains/${domainId}`),
 };
 
 export default apiClient;

@@ -161,3 +161,23 @@ export interface Kiosk {
   allowMultipleResponses: boolean;
   createdAt: string;
 }
+
+export interface DnsInstructions {
+  type: string;
+  name: string;
+  value: string;
+}
+
+export interface CustomDomain {
+  id: string;
+  /** Organisation this domain belongs to */
+  orgId: string;
+  /** Human-readable org name (returned by admin list endpoint) */
+  orgName?: string;
+  domain: string;
+  verified: boolean;
+  verificationToken?: string;
+  isPrimary: boolean;
+  dnsInstructions?: DnsInstructions;
+  createdAt: string;
+}

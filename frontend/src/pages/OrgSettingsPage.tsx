@@ -4,13 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Globe } from 'lucide-react';
 import { orgs as orgsApi } from '@/lib/api';
 import type { Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
@@ -157,6 +157,27 @@ export default function OrgSettingsPage() {
           </CardContent>
         </Card>
       </form>
+
+      {/* Custom Domains */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Custom Domains</CardTitle>
+          <CardDescription>
+            Serve your forms from your own domain name
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-3">
+            Add custom domains to white-label CloudyForms for your organisation.
+            Forms and the management interface can be served from{' '}
+            <code className="font-mono text-xs bg-gray-100 px-1 rounded">forms.yourdomain.com</code>.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/orgs/${orgId}/domains`)}>
+            <Globe className="h-4 w-4" />
+            Manage Custom Domains
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Danger zone */}
       <Card className="border-red-200">

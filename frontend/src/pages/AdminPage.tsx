@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { admin } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Building2, FileText, MessageSquare } from 'lucide-react';
+import { Shield, Users, Building2, FileText, MessageSquare, Globe } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface AdminStats {
   users: number;
@@ -66,9 +67,15 @@ export default function AdminPage() {
           <CardTitle className="text-base">Platform Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mb-4">
             You have super admin access. Additional management tools will be available here.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/domains')}>
+              <Globe className="h-4 w-4" />
+              Manage Custom Domains
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
