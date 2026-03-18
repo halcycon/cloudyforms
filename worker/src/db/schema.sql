@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS forms (
   fields TEXT NOT NULL DEFAULT '[]', -- JSON array of FormField
   settings TEXT NOT NULL DEFAULT '{}', -- JSON FormSettings
   branding TEXT NOT NULL DEFAULT '{}', -- JSON BrandingConfig
+  document_template TEXT, -- JSON DocumentTemplate (optional PDF/MD template config)
   created_by TEXT REFERENCES users(id),
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))

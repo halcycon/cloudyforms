@@ -123,6 +123,7 @@ export interface Form {
   fields: FormField[];
   settings: FormSettings;
   branding: BrandingConfig;
+  documentTemplate?: DocumentTemplate | null;
   createdAt: string;
   updatedAt: string;
   responseCount?: number;
@@ -180,4 +181,26 @@ export interface CustomDomain {
   isPrimary: boolean;
   dnsInstructions?: DnsInstructions;
   createdAt: string;
+}
+
+export interface FieldMapping {
+  fieldId: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  fontColor?: string;
+  pdfFieldName?: string;
+}
+
+export interface DocumentTemplate {
+  enabled: boolean;
+  type: 'pdf' | 'markdown';
+  fileKey?: string;
+  fileName?: string;
+  markdownContent?: string;
+  fieldMappings: FieldMapping[];
+  pageCount?: number;
 }

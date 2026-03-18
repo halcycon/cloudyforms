@@ -62,6 +62,28 @@ export interface BrandingConfig {
   showPoweredBy?: boolean;
 }
 
+export interface FieldMapping {
+  fieldId: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  fontColor?: string;
+  pdfFieldName?: string;
+}
+
+export interface DocumentTemplate {
+  enabled: boolean;
+  type: "pdf" | "markdown";
+  fileKey?: string;
+  fileName?: string;
+  markdownContent?: string;
+  fieldMappings: FieldMapping[];
+  pageCount?: number;
+}
+
 const defaultSettings: FormSettings = {
   submitButtonText: "Submit",
   successMessage: "Thank you for your submission!",
@@ -88,6 +110,7 @@ const createFormSchema = z.object({
   fields: z.array(z.any()).default([]),
   settings: z.any().optional(),
   branding: z.any().optional(),
+  documentTemplate: z.any().optional(),
   accessType: z.enum(["public", "unlisted", "code", "kiosk_only"]).default("public"),
   accessCode: z.string().optional(),
 });
@@ -98,6 +121,7 @@ const updateFormSchema = z.object({
   fields: z.array(z.any()).optional(),
   settings: z.any().optional(),
   branding: z.any().optional(),
+  documentTemplate: z.any().optional().nullable(),
   accessType: z.enum(["public", "unlisted", "code", "kiosk_only"]).optional(),
   accessCode: z.string().optional().nullable(),
 });
@@ -153,6 +177,7 @@ interface FormRow {
   fields: string;
   settings: string;
   branding: string;
+  document_template: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -171,6 +196,7 @@ function serializeForm(row: FormRow) {
     fields: JSON.parse(row.fields),
     settings: JSON.parse(row.settings),
     branding: JSON.parse(row.branding),
+    documentTemplate: row.document_template ? JSON.parse(row.document_template) : null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -252,15 +278,16 @@ forms.post("/", authMiddleware, zValidator("json", createFormSchema), async (c) 
   const settings = JSON.stringify({ ...defaultSettings, ...(body.settings ?? {}) });
   const branding = JSON.stringify(body.branding ?? {});
   const fields = JSON.stringify(body.fields ?? []);
+  const documentTemplate = body.documentTemplate ? JSON.stringify(body.documentTemplate) : null;
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, body.orgId, body.title, body.description ?? null, slug,
       body.accessType, body.accessCode ?? null, fields, settings, branding,
-      user.userId, now, now,
+      documentTemplate, user.userId, now, now,
     ]
   );
 
@@ -342,6 +369,10 @@ forms.put(
       const merged = { ...JSON.parse(form.branding), ...updates.branding };
       sets.push("branding = ?");
       params.push(JSON.stringify(merged));
+    }
+    if (updates.documentTemplate !== undefined) {
+      sets.push("document_template = ?");
+      params.push(updates.documentTemplate ? JSON.stringify(updates.documentTemplate) : null);
     }
     if (updates.accessType !== undefined) { sets.push("access_type = ?"); params.push(updates.accessType); }
     if (updates.accessCode !== undefined) { sets.push("access_code = ?"); params.push(updates.accessCode); }
@@ -481,12 +512,12 @@ forms.post("/:formId/duplicate", authMiddleware, async (c) => {
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       newId, form.org_id, `${form.title} (Copy)`, form.description, newSlug,
       form.access_type, form.access_code, form.fields, form.settings, form.branding,
-      user.userId, now, now,
+      form.document_template, user.userId, now, now,
     ]
   );
 
