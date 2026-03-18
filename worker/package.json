@@ -14,7 +14,7 @@
     "marked": "^14.1.4",
     "nanoid": "^5.0.7",
     "pdf-lib": "^1.17.1",
-    "zod": "^3.23.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240725.0",
