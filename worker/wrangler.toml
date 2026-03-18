@@ -5,14 +5,14 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-TURNSTILE_SECRET_KEY = ""
-JWT_SECRET = ""
-MAILCHANNELS_API_KEY = ""
 FROM_EMAIL = "noreply@cloudyforms.example.com"
 # Comma-separated list of allowed CORS origins for the management API.
 # Use "*" to allow all (fine for public deployments; tighten in production).
 # Embed/public routes always allow cross-origin requests regardless of this value.
 ALLOWED_ORIGINS = "*"
+# NOTE: Secrets (JWT_SECRET, TURNSTILE_SECRET_KEY, MAILCHANNELS_API_KEY)
+# must NEVER be added here. Use `wrangler secret put <NAME>` instead.
+# See README.md for details.
 
 [[d1_databases]]
 binding = "DB"
