@@ -536,7 +536,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                       onChange({
                         repeatableGroup: {
                           isGroupStart: true,
-                          groupId: `group_${Math.random().toString(36).slice(2, 9)}`,
+                          groupId: `group_${crypto.randomUUID().slice(0, 8)}`,
                           maxRepetitions: 9,
                           minRepetitions: 1,
                         },

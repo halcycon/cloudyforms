@@ -338,12 +338,13 @@ function formatDate(format: string): string {
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
   ];
+  // Replace in descending length order to avoid partial matches
   return format
-    .replace("DD", String(day).padStart(2, "0"))
-    .replace("D", String(day))
     .replace("MMMM", months[month - 1])
+    .replace("YYYY", String(year))
+    .replace("DD", String(day).padStart(2, "0"))
     .replace("MM", String(month).padStart(2, "0"))
-    .replace("YYYY", String(year));
+    .replace(/\bD\b/, String(day));
 }
 
 function evaluateComputedField(
@@ -531,11 +532,11 @@ async function generatePdfFromTemplate(
         ? (isTruthyValue(value) ? "Yes" : "No")
         : value;
 
-    // Calculate actual x considering shrinkable offset
+    // Calculate actual x considering shrinkable offset from a previous field
     const yKey = `${pageIndex}:${Math.round(mapping.y)}`;
     let xPos = mapping.x;
     const offsetForLine = shrinkOffsets.get(yKey);
-    if (offsetForLine !== undefined && mapping.shrinkable) {
+    if (offsetForLine !== undefined) {
       xPos = offsetForLine;
     }
 

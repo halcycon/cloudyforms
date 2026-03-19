@@ -54,7 +54,6 @@ function expandFields(
     if (processed.has(gid)) continue;
     if (!field.repeatableGroup.isGroupStart) {
       // Non-anchor field of a group – skip, will be handled by anchor
-      result.push(field);
       continue;
     }
 
@@ -335,10 +334,17 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
               }
             }
 
+            const isNewGroupRow =
+              !!groupDef &&
+              field.id.includes('_row_') &&
+              idx > 0 &&
+              !!origField?.repeatableGroup?.isGroupStart &&
+              baseId === groupDef.fields[0].id;
+
             return (
               <div key={field.id}>
                 {/* Row separator for repeatable groups (rows 2+) */}
-                {groupDef && field.id.includes('_row_') && idx > 0 && origField?.repeatableGroup?.isGroupStart && baseId === groupDef.fields[0].id && (
+                {isNewGroupRow && (
                   <hr className="border-gray-200 mb-4" />
                 )}
                 <FormFieldRenderer

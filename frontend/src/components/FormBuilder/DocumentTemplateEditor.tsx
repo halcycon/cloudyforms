@@ -964,11 +964,15 @@ function ComputedFieldsPanel({
       calculated: 'Calculated Value',
       conditional: 'Conditional Value',
     };
+    const defaultValues: Record<string, string | undefined> = {
+      date: 'DD/MM/YYYY',
+      static: '',
+    };
     const newMapping: ComputedFieldMapping = {
       id,
       label: labels[type] ?? 'Computed',
       type,
-      value: type === 'date' ? 'DD/MM/YYYY' : type === 'static' ? '' : undefined,
+      value: defaultValues[type],
       page: currentPage,
       x: 50,
       y: 50,
@@ -1056,7 +1060,7 @@ function ComputedFieldsPanel({
                 setExpanded(expanded === cm.id ? null : cm.id)
               }
             >
-              {cm.type === 'date' ? '📅' : cm.type === 'calculated' ? '🔢' : cm.type === 'conditional' ? '❓' : '📝'}{' '}
+              {{ date: '📅', calculated: '🔢', conditional: '❓', static: '📝' }[cm.type] ?? '📝'}{' '}
               {cm.label}
             </button>
             <Button
