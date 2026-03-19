@@ -18,10 +18,12 @@ import { Plus, Trash2 } from 'lucide-react';
 interface FormSettingsProps {
   settings: FormSettingsType;
   fields: FormField[];
+  slug?: string;
   onChange: (settings: FormSettingsType) => void;
+  onSlugChange?: (slug: string) => void;
 }
 
-export function FormSettings({ settings, fields, onChange }: FormSettingsProps) {
+export function FormSettings({ settings, fields, slug, onChange, onSlugChange }: FormSettingsProps) {
   const [newEmail, setNewEmail] = useState('');
 
   function update<K extends keyof FormSettingsType>(key: K, value: FormSettingsType[K]) {
@@ -38,6 +40,28 @@ export function FormSettings({ settings, fields, onChange }: FormSettingsProps) 
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-5">
+      {/* Slug */}
+      {slug !== undefined && (
+        <>
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">URL Slug</h3>
+            <div className="space-y-1.5">
+              <Label>Slug</Label>
+              <Input
+                value={slug}
+                onChange={(e) => onSlugChange?.(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                placeholder="my-form-slug"
+              />
+              <p className="text-xs text-gray-400">
+                Used in the public URL: /f/{slug || '...'}
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+        </>
+      )}
+
       {/* Submission */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-gray-900">Submission</h3>

@@ -114,14 +114,16 @@ export function FormBuilder({ formId }: FormBuilderProps) {
     try {
       if (formId || formData.id) {
         const id = formId ?? formData.id!;
-        await formsApi.update(id, {
+        const updated = await formsApi.update(id, {
           title: formData.title,
           description: formData.description,
+          slug: formData.slug,
           fields: formData.fields,
           settings: formData.settings,
           branding: formData.branding,
           documentTemplate: formData.documentTemplate,
         });
+        setForm(updated);
       } else {
         if (!currentOrg) {
           toast.error('Please select an organization first');
@@ -397,7 +399,9 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 <FormSettingsPanel
                   settings={form.settings ?? DEFAULT_SETTINGS}
                   fields={form.fields ?? []}
+                  slug={form.slug}
                   onChange={(settings) => updateForm({ settings })}
+                  onSlugChange={(slug) => updateForm({ slug })}
                 />
               </TabsContent>
 

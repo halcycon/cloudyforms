@@ -125,7 +125,7 @@ export const forms = {
 
   update: (
     id: string,
-    data: Partial<Pick<Form, 'title' | 'description' | 'fields' | 'settings' | 'branding' | 'documentTemplate' | 'accessType' | 'accessCode'>>,
+    data: Partial<Pick<Form, 'title' | 'description' | 'slug' | 'fields' | 'settings' | 'branding' | 'documentTemplate' | 'accessType' | 'accessCode'>>,
   ) => patch<Form>(`/forms/${id}`, data),
 
   delete: (id: string) => del<{ message: string }>(`/forms/${id}`),
