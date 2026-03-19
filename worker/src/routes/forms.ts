@@ -3,7 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
-import { authMiddleware, requireRole } from "../middleware/auth";
+import { authMiddleware, requireRole, optionalAuthMiddleware } from "../middleware/auth";
 import type { Bindings } from "../index";
 
 const forms = new Hono<{ Bindings: Bindings }>();
@@ -118,6 +118,12 @@ const createFormSchema = z.object({
 const updateFormSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional().nullable(),
+  slug: z
+    .string()
+    .min(2)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens")
+    .optional(),
   fields: z.array(z.any()).optional(),
   settings: z.any().optional(),
   branding: z.any().optional(),
@@ -245,18 +251,33 @@ function serializeForm(row: FormRow) {
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
-// Public form by slug (no auth)
-forms.get("/public/:formSlug", async (c) => {
+// Public form by slug (no auth required; optional auth allows draft preview)
+forms.get("/public/:formSlug", optionalAuthMiddleware, async (c) => {
   const { formSlug } = c.req.param();
+  const user = c.get("user"); // may be undefined for unauthenticated visitors
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE slug = ? AND status = 'published'",
+    "SELECT * FROM forms WHERE slug = ?",
     [formSlug]
   );
 
   if (!form) {
+    console.log(`[FORMS] Public form not found slug=${formSlug}`);
     return c.json({ error: "Form not found" }, 404);
+  }
+
+  // Unpublished forms are only visible to authenticated org members (preview)
+  if (form.status !== "published") {
+    if (!user) {
+      return c.json({ error: "Form not found" }, 404);
+    }
+    const role = user.isSuperAdmin
+      ? "owner"
+      : await getUserOrgRole(c.env.DB, user.userId, form.org_id);
+    if (!role) {
+      return c.json({ error: "Form not found" }, 404);
+    }
   }
 
   const settings: FormSettings = JSON.parse(form.settings);
@@ -404,6 +425,19 @@ forms.on(["PUT", "PATCH"],
     const params: unknown[] = [new Date().toISOString()];
 
     if (updates.title !== undefined) { sets.push("title = ?"); params.push(updates.title); }
+    if (updates.slug !== undefined) {
+      // Check uniqueness (excluding current form)
+      const existing = await dbQueryFirst<{ id: string }>(
+        c.env.DB,
+        "SELECT id FROM forms WHERE slug = ? AND id != ?",
+        [updates.slug, formId]
+      );
+      if (existing) {
+        return c.json({ error: "Slug is already in use" }, 409);
+      }
+      sets.push("slug = ?");
+      params.push(updates.slug);
+    }
     if (updates.description !== undefined) { sets.push("description = ?"); params.push(updates.description); }
     if (updates.fields !== undefined) { sets.push("fields = ?"); params.push(JSON.stringify(updates.fields)); }
     if (updates.settings !== undefined) {

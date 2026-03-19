@@ -21,7 +21,13 @@ declare global {
 export function TurnstileWidget({ onSuccess, onError }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string>('');
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
+
+  // Keep callback refs up to date without triggering widget re-creation
+  useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   useEffect(() => {
     if (!siteKey) return;
@@ -30,8 +36,8 @@ export function TurnstileWidget({ onSuccess, onError }: TurnstileWidgetProps) {
       if (!containerRef.current || !window.turnstile) return;
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: siteKey,
-        callback: onSuccess,
-        'error-callback': onError,
+        callback: (token: string) => onSuccessRef.current(token),
+        'error-callback': () => onErrorRef.current?.(),
       });
     }
 
@@ -51,7 +57,7 @@ export function TurnstileWidget({ onSuccess, onError }: TurnstileWidgetProps) {
         window.turnstile.remove(widgetIdRef.current);
       }
     };
-  }, [siteKey, onSuccess, onError]);
+  }, [siteKey]);
 
   if (!siteKey) return null;
 
