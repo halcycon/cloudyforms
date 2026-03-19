@@ -67,7 +67,7 @@ export default function ResponsesPage() {
     if (selected.size === 0) return;
     setDeletingSelected(true);
     try {
-      await responsesApi.bulkDelete(Array.from(selected));
+      await responsesApi.bulkDelete(formId!, Array.from(selected));
       setResponsesList((prev) => prev.filter((r) => !selected.has(r.id)));
       setTotal((t) => t - selected.size);
       setSelected(new Set());

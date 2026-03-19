@@ -159,7 +159,7 @@ fieldGroups.get("/:groupId", authMiddleware, async (c) => {
 });
 
 // Update field group
-fieldGroups.put(
+fieldGroups.on(["PUT", "PATCH"],
   "/:groupId",
   authMiddleware,
   zValidator("json", updateFieldGroupSchema),

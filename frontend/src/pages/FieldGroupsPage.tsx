@@ -49,7 +49,8 @@ export default function FieldGroupsPage() {
   const [fields, setFields] = useState<FormField[]>([]);
 
   useEffect(() => {
-    fieldGroupsApi.list(currentOrg?.id)
+    if (!currentOrg?.id) return;
+    fieldGroupsApi.list(currentOrg.id)
       .then(setGroups)
       .catch(() => {})
       .finally(() => setLoading(false));

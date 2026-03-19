@@ -14,6 +14,7 @@ import { fileRoutes } from "./routes/files";
 import { orgDomainRoutes, adminDomainRoutes } from "./routes/domains";
 import { embedRoutes } from "./routes/embed";
 import { domainMiddleware } from "./middleware/domain";
+import { loggerMiddleware } from "./middleware/logger";
 
 export type Bindings = {
   DB: D1Database;
@@ -27,6 +28,9 @@ export type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+// Request / response logging – visible via `npx wrangler tail`.
+app.use("*", loggerMiddleware);
 
 // Domain routing middleware – runs before everything else.
 // Resolves custom Host headers to an orgId for white-label deployments.
@@ -82,7 +86,7 @@ app.route("/api/admin/domains", adminDomainRoutes);
 
 // Global error handler
 app.onError((err, c) => {
-  console.error("Unhandled error:", err);
+  console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err.message, err.stack);
   return c.json(
     {
       error: "Internal server error",
@@ -95,6 +99,7 @@ app.onError((err, c) => {
 
 // 404 handler
 app.notFound((c) => {
+  console.log(`[404] ${c.req.method} ${c.req.path} – no matching route`);
   return c.json({ error: "Not found", path: c.req.path }, 404);
 });
 
