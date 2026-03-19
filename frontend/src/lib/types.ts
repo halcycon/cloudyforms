@@ -85,6 +85,17 @@ export interface FormField {
     logicType: 'all' | 'any';
   };
   optionListId?: string;
+  /** Configuration for repeatable field groups */
+  repeatableGroup?: {
+    /** Whether this field is the first (anchor) field in a repeatable group */
+    isGroupStart: boolean;
+    /** Unique group identifier shared by all fields in the group */
+    groupId: string;
+    /** Maximum number of repetitions allowed */
+    maxRepetitions: number;
+    /** Minimum number of repetitions required (defaults to 1) */
+    minRepetitions?: number;
+  };
 }
 
 export interface FormSettings {
@@ -194,8 +205,49 @@ export interface CustomDomain {
   createdAt: string;
 }
 
+export type BooleanDisplayMode = 'text' | 'checkmark' | 'cross';
+
 export interface FieldMapping {
   fieldId: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  fontColor?: string;
+  pdfFieldName?: string;
+  /** When true, the rendered width shrinks to fit text so the next field can shift left */
+  shrinkable?: boolean;
+  /** How to render boolean/checkbox values on the PDF */
+  booleanDisplay?: BooleanDisplayMode;
+  /** Separate mapping for the "true" value position (e.g. a checkmark at a specific location) */
+  booleanTrueMapping?: { page: number; x: number; y: number };
+  /** Separate mapping for the "false" value position (e.g. a cross at a different location) */
+  booleanFalseMapping?: { page: number; x: number; y: number };
+}
+
+export interface ComputedFieldMapping {
+  id: string;
+  label: string;
+  /** 'static' for fixed text, 'date' for today's date, 'calculated' for expressions, 'conditional' for logic-based values */
+  type: 'static' | 'date' | 'calculated' | 'conditional';
+  /** For static: the literal text. For date: a format string (e.g. 'DD/MM/YYYY'). For calculated: expression. */
+  value?: string;
+  /** For conditional: array of condition/output pairs */
+  conditions?: {
+    fieldId: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'not_empty' | 'empty' | 'greater_than' | 'less_than';
+    compareValue: string;
+    output: string;
+  }[];
+  /** For calculated: 'count_non_empty' counts non-empty fields in a group */
+  calculationType?: 'count_non_empty' | 'sum' | 'expression';
+  /** Field IDs to use in calculation */
+  calculationFieldIds?: string[];
+  /** Fallback value when conditions don't match or calculation fails */
+  fallback?: string;
+  /** PDF placement */
   page: number;
   x: number;
   y: number;
@@ -213,5 +265,8 @@ export interface DocumentTemplate {
   fileName?: string;
   markdownContent?: string;
   fieldMappings: FieldMapping[];
+  computedMappings?: ComputedFieldMapping[];
+  /** Names of form fields detected in the uploaded fillable PDF */
+  detectedPdfFields?: string[];
   pageCount?: number;
 }

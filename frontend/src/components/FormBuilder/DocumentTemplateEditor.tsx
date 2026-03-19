@@ -14,7 +14,7 @@ import {
   X,
   Type,
 } from 'lucide-react';
-import type { FormField, DocumentTemplate, FieldMapping } from '@/lib/types';
+import type { FormField, DocumentTemplate, FieldMapping, ComputedFieldMapping } from '@/lib/types';
 import { files as filesApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,9 @@ export function DocumentTemplateEditor({
   const [uploading, setUploading] = useState(false);
   const [selectedMappingId, setSelectedMappingId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [detectedPdfFields, setDetectedPdfFields] = useState<string[]>(
+    config.detectedPdfFields ?? [],
+  );
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +114,34 @@ export function DocumentTemplateEditor({
   function handlePdfLoadSuccess({ numPages: pages }: { numPages: number }) {
     setNumPages(pages);
     update({ pageCount: pages });
+    // Detect fillable PDF form fields using pdf.js
+    if (pdfUrl) {
+      detectPdfFormFields(pdfUrl);
+    }
+  }
+
+  async function detectPdfFormFields(url: string) {
+    try {
+      const loadingTask = pdfjs.getDocument(url);
+      const pdf = await loadingTask.promise;
+      const fieldNames: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const annotations = await page.getAnnotations();
+        for (const annot of annotations) {
+          if (annot.fieldName && annot.subtype === 'Widget') {
+            fieldNames.push(annot.fieldName);
+          }
+        }
+      }
+      if (fieldNames.length > 0) {
+        setDetectedPdfFields(fieldNames);
+        update({ detectedPdfFields: fieldNames });
+        toast.success(`Detected ${fieldNames.length} fillable field(s) in PDF`);
+      }
+    } catch {
+      // Not a fillable PDF or detection failed – that's fine
+    }
   }
 
   function handlePdfClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -497,6 +528,91 @@ export function DocumentTemplateEditor({
                         </div>
                       </div>
 
+                      {/* Detected fillable PDF fields */}
+                      {detectedPdfFields.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-purple-600">
+                            Detected fillable PDF fields (click to map):
+                          </p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {detectedPdfFields.map((pdfFieldName) => {
+                              const alreadyMapped = config.fieldMappings.some(
+                                (m) => m.pdfFieldName === pdfFieldName,
+                              );
+                              return (
+                                <div
+                                  key={pdfFieldName}
+                                  className={cn(
+                                    'flex items-center justify-between rounded px-2 py-1.5 text-xs',
+                                    alreadyMapped
+                                      ? 'bg-purple-50 border border-purple-200'
+                                      : 'bg-gray-50 border border-gray-200',
+                                  )}
+                                >
+                                  <span className="truncate font-mono text-gray-700">
+                                    {pdfFieldName}
+                                  </span>
+                                  {alreadyMapped ? (
+                                    <span className="text-purple-600 text-[10px]">Mapped</span>
+                                  ) : (
+                                    <select
+                                      className="h-5 text-[10px] rounded border border-gray-300 bg-white px-1"
+                                      value=""
+                                      onChange={(e) => {
+                                        if (!e.target.value) return;
+                                        const fieldId = e.target.value;
+                                        const existing = config.fieldMappings.find(
+                                          (m) => m.fieldId === fieldId,
+                                        );
+                                        if (existing) {
+                                          updateFieldMapping(fieldId, { pdfFieldName });
+                                        } else {
+                                          const newMapping: FieldMapping = {
+                                            fieldId,
+                                            page: currentPage,
+                                            x: 50,
+                                            y: 50,
+                                            width: 200,
+                                            height: 20,
+                                            fontSize: 12,
+                                            fontColor: '#000000',
+                                            pdfFieldName,
+                                          };
+                                          update({
+                                            fieldMappings: [
+                                              ...config.fieldMappings,
+                                              newMapping,
+                                            ],
+                                          });
+                                        }
+                                        toast.success(
+                                          `Mapped "${pdfFieldName}" to form field`,
+                                        );
+                                      }}
+                                    >
+                                      <option value="">Map to field…</option>
+                                      {dataFields.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                          {f.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Computed / static data mappings */}
+                      <ComputedFieldsPanel
+                        computedMappings={config.computedMappings ?? []}
+                        fields={dataFields}
+                        currentPage={currentPage}
+                        onChange={(computedMappings) => update({ computedMappings })}
+                      />
+
                       {/* Selected mapping properties */}
                       {selectedMappingId && (
                         <FieldMappingEditor
@@ -595,6 +711,8 @@ function FieldMappingEditor({
 }) {
   if (!mapping || !field) return null;
 
+  const isBoolean = field.type === 'checkbox';
+
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 space-y-2">
       <p className="text-xs font-medium text-blue-800">
@@ -662,6 +780,600 @@ function FieldMappingEditor({
           <span className="text-[10px] text-gray-500">{mapping.fontColor ?? '#000000'}</span>
         </div>
       </div>
+
+      {/* Shrinkable toggle */}
+      <div className="flex items-center justify-between pt-1">
+        <div>
+          <Label className="text-[10px] text-blue-600">Shrinkable</Label>
+          <p className="text-[9px] text-blue-400">
+            Shrink width to fit text so the next field shifts left
+          </p>
+        </div>
+        <Switch
+          checked={mapping.shrinkable ?? false}
+          onCheckedChange={(shrinkable) => onChange({ shrinkable })}
+        />
+      </div>
+
+      {/* Boolean display mode (for checkbox fields) */}
+      {isBoolean && (
+        <div className="space-y-2 pt-1 border-t border-blue-200">
+          <Label className="text-[10px] text-blue-600">
+            Boolean Display Mode
+          </Label>
+          <select
+            className="h-6 w-full text-xs rounded border border-blue-300 bg-white px-1"
+            value={mapping.booleanDisplay ?? 'text'}
+            onChange={(e) =>
+              onChange({
+                booleanDisplay: e.target.value as FieldMapping['booleanDisplay'],
+              })
+            }
+          >
+            <option value="text">Text (Yes/No)</option>
+            <option value="checkmark">Checkmark (✓)</option>
+            <option value="cross">Cross (✕)</option>
+          </select>
+
+          {(mapping.booleanDisplay === 'checkmark' ||
+            mapping.booleanDisplay === 'cross') && (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-[10px] text-blue-600">
+                  &quot;True&quot; position (page, x, y)
+                </Label>
+                <div className="grid grid-cols-3 gap-1">
+                  <Input
+                    type="number"
+                    value={mapping.booleanTrueMapping?.page ?? mapping.page}
+                    onChange={(e) =>
+                      onChange({
+                        booleanTrueMapping: {
+                          page: Number(e.target.value),
+                          x: mapping.booleanTrueMapping?.x ?? mapping.x,
+                          y: mapping.booleanTrueMapping?.y ?? mapping.y,
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="Page"
+                  />
+                  <Input
+                    type="number"
+                    value={Math.round(
+                      mapping.booleanTrueMapping?.x ?? mapping.x,
+                    )}
+                    onChange={(e) =>
+                      onChange({
+                        booleanTrueMapping: {
+                          page:
+                            mapping.booleanTrueMapping?.page ?? mapping.page,
+                          x: Number(e.target.value),
+                          y: mapping.booleanTrueMapping?.y ?? mapping.y,
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="X"
+                  />
+                  <Input
+                    type="number"
+                    value={Math.round(
+                      mapping.booleanTrueMapping?.y ?? mapping.y,
+                    )}
+                    onChange={(e) =>
+                      onChange({
+                        booleanTrueMapping: {
+                          page:
+                            mapping.booleanTrueMapping?.page ?? mapping.page,
+                          x: mapping.booleanTrueMapping?.x ?? mapping.x,
+                          y: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="Y"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px] text-blue-600">
+                  &quot;False&quot; position (page, x, y)
+                </Label>
+                <div className="grid grid-cols-3 gap-1">
+                  <Input
+                    type="number"
+                    value={mapping.booleanFalseMapping?.page ?? mapping.page}
+                    onChange={(e) =>
+                      onChange({
+                        booleanFalseMapping: {
+                          page: Number(e.target.value),
+                          x: mapping.booleanFalseMapping?.x ?? mapping.x,
+                          y: mapping.booleanFalseMapping?.y ?? mapping.y,
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="Page"
+                  />
+                  <Input
+                    type="number"
+                    value={Math.round(
+                      mapping.booleanFalseMapping?.x ?? mapping.x,
+                    )}
+                    onChange={(e) =>
+                      onChange({
+                        booleanFalseMapping: {
+                          page:
+                            mapping.booleanFalseMapping?.page ?? mapping.page,
+                          x: Number(e.target.value),
+                          y: mapping.booleanFalseMapping?.y ?? mapping.y,
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="X"
+                  />
+                  <Input
+                    type="number"
+                    value={Math.round(
+                      mapping.booleanFalseMapping?.y ?? mapping.y,
+                    )}
+                    onChange={(e) =>
+                      onChange({
+                        booleanFalseMapping: {
+                          page:
+                            mapping.booleanFalseMapping?.page ?? mapping.page,
+                          x: mapping.booleanFalseMapping?.x ?? mapping.x,
+                          y: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="Y"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sub-component for managing computed/static data mappings
+function ComputedFieldsPanel({
+  computedMappings,
+  fields,
+  currentPage,
+  onChange,
+}: {
+  computedMappings: ComputedFieldMapping[];
+  fields: FormField[];
+  currentPage: number;
+  onChange: (mappings: ComputedFieldMapping[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  function addComputed(type: ComputedFieldMapping['type']) {
+    const id = `computed_${Math.random().toString(36).slice(2, 9)}`;
+    const labels: Record<string, string> = {
+      static: 'Static Text',
+      date: "Today's Date",
+      calculated: 'Calculated Value',
+      conditional: 'Conditional Value',
+    };
+    const newMapping: ComputedFieldMapping = {
+      id,
+      label: labels[type] ?? 'Computed',
+      type,
+      value: type === 'date' ? 'DD/MM/YYYY' : type === 'static' ? '' : undefined,
+      page: currentPage,
+      x: 50,
+      y: 50,
+      width: 200,
+      height: 20,
+      fontSize: 12,
+      fontColor: '#000000',
+      conditions: type === 'conditional' ? [] : undefined,
+      calculationType: type === 'calculated' ? 'count_non_empty' : undefined,
+      calculationFieldIds: type === 'calculated' ? [] : undefined,
+      fallback: '',
+    };
+    onChange([...computedMappings, newMapping]);
+    setExpanded(id);
+  }
+
+  function updateComputed(
+    id: string,
+    updates: Partial<ComputedFieldMapping>,
+  ) {
+    onChange(
+      computedMappings.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    );
+  }
+
+  function removeComputed(id: string) {
+    onChange(computedMappings.filter((m) => m.id !== id));
+    if (expanded === id) setExpanded(null);
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-gray-600">
+        Computed / Static Data:
+      </p>
+      <div className="flex flex-wrap gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] text-teal-600 hover:text-teal-700"
+          onClick={() => addComputed('static')}
+        >
+          <Plus className="h-2.5 w-2.5 mr-0.5" />
+          Static
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] text-teal-600 hover:text-teal-700"
+          onClick={() => addComputed('date')}
+        >
+          <Plus className="h-2.5 w-2.5 mr-0.5" />
+          Date
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] text-teal-600 hover:text-teal-700"
+          onClick={() => addComputed('calculated')}
+        >
+          <Plus className="h-2.5 w-2.5 mr-0.5" />
+          Calculated
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] text-teal-600 hover:text-teal-700"
+          onClick={() => addComputed('conditional')}
+        >
+          <Plus className="h-2.5 w-2.5 mr-0.5" />
+          Conditional
+        </Button>
+      </div>
+
+      {computedMappings.map((cm) => (
+        <div
+          key={cm.id}
+          className="rounded border border-teal-200 bg-teal-50 p-1.5 space-y-1"
+        >
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              className="text-[10px] font-medium text-teal-800 truncate text-left"
+              onClick={() =>
+                setExpanded(expanded === cm.id ? null : cm.id)
+              }
+            >
+              {cm.type === 'date' ? '📅' : cm.type === 'calculated' ? '🔢' : cm.type === 'conditional' ? '❓' : '📝'}{' '}
+              {cm.label}
+            </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0 text-gray-400 hover:text-red-500"
+              onClick={() => removeComputed(cm.id)}
+            >
+              <X className="h-2.5 w-2.5" />
+            </Button>
+          </div>
+
+          {expanded === cm.id && (
+            <div className="space-y-1.5 pt-1 border-t border-teal-200">
+              <div>
+                <Label className="text-[10px] text-teal-600">Label</Label>
+                <Input
+                  value={cm.label}
+                  onChange={(e) =>
+                    updateComputed(cm.id, { label: e.target.value })
+                  }
+                  className="h-5 text-[10px]"
+                />
+              </div>
+
+              {cm.type === 'static' && (
+                <div>
+                  <Label className="text-[10px] text-teal-600">
+                    Static Text
+                  </Label>
+                  <Input
+                    value={cm.value ?? ''}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { value: e.target.value })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="Enter static text…"
+                  />
+                </div>
+              )}
+
+              {cm.type === 'date' && (
+                <div>
+                  <Label className="text-[10px] text-teal-600">
+                    Date Format
+                  </Label>
+                  <select
+                    className="h-5 w-full text-[10px] rounded border border-teal-300 bg-white px-1"
+                    value={cm.value ?? 'DD/MM/YYYY'}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { value: e.target.value })
+                    }
+                  >
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    <option value="D MMMM YYYY">D MMMM YYYY</option>
+                  </select>
+                </div>
+              )}
+
+              {cm.type === 'calculated' && (
+                <>
+                  <div>
+                    <Label className="text-[10px] text-teal-600">
+                      Calculation Type
+                    </Label>
+                    <select
+                      className="h-5 w-full text-[10px] rounded border border-teal-300 bg-white px-1"
+                      value={cm.calculationType ?? 'count_non_empty'}
+                      onChange={(e) =>
+                        updateComputed(cm.id, {
+                          calculationType: e.target.value as ComputedFieldMapping['calculationType'],
+                        })
+                      }
+                    >
+                      <option value="count_non_empty">
+                        Count non-empty fields
+                      </option>
+                      <option value="sum">Sum of numeric fields</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-teal-600">
+                      Fields to include
+                    </Label>
+                    <div className="max-h-20 overflow-y-auto space-y-0.5">
+                      {fields.map((f) => (
+                        <label
+                          key={f.id}
+                          className="flex items-center gap-1 text-[10px]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={
+                              cm.calculationFieldIds?.includes(f.id) ?? false
+                            }
+                            onChange={(e) => {
+                              const ids = cm.calculationFieldIds ?? [];
+                              updateComputed(cm.id, {
+                                calculationFieldIds: e.target.checked
+                                  ? [...ids, f.id]
+                                  : ids.filter((i) => i !== f.id),
+                              });
+                            }}
+                            className="h-2.5 w-2.5"
+                          />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {cm.type === 'conditional' && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-teal-600">
+                    Conditions
+                  </Label>
+                  {(cm.conditions ?? []).map((cond, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-[1fr_auto_1fr_1fr_auto] gap-0.5 items-center"
+                    >
+                      <select
+                        className="h-5 text-[10px] rounded border border-gray-300 bg-white px-0.5"
+                        value={cond.fieldId}
+                        onChange={(e) => {
+                          const conds = [...(cm.conditions ?? [])];
+                          conds[idx] = { ...conds[idx], fieldId: e.target.value };
+                          updateComputed(cm.id, { conditions: conds });
+                        }}
+                      >
+                        <option value="">Field…</option>
+                        {fields.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="h-5 text-[10px] rounded border border-gray-300 bg-white px-0.5"
+                        value={cond.operator}
+                        onChange={(e) => {
+                          const conds = [...(cm.conditions ?? [])];
+                          conds[idx] = {
+                            ...conds[idx],
+                            operator: e.target.value as typeof cond.operator,
+                          };
+                          updateComputed(cm.id, { conditions: conds });
+                        }}
+                      >
+                        <option value="equals">=</option>
+                        <option value="not_equals">≠</option>
+                        <option value="contains">∋</option>
+                        <option value="not_empty">≠∅</option>
+                        <option value="empty">∅</option>
+                        <option value="greater_than">&gt;</option>
+                        <option value="less_than">&lt;</option>
+                      </select>
+                      <Input
+                        value={cond.compareValue}
+                        onChange={(e) => {
+                          const conds = [...(cm.conditions ?? [])];
+                          conds[idx] = {
+                            ...conds[idx],
+                            compareValue: e.target.value,
+                          };
+                          updateComputed(cm.id, { conditions: conds });
+                        }}
+                        className="h-5 text-[10px]"
+                        placeholder="Value"
+                      />
+                      <Input
+                        value={cond.output}
+                        onChange={(e) => {
+                          const conds = [...(cm.conditions ?? [])];
+                          conds[idx] = { ...conds[idx], output: e.target.value };
+                          updateComputed(cm.id, { conditions: conds });
+                        }}
+                        className="h-5 text-[10px]"
+                        placeholder="Output"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 text-gray-400 hover:text-red-500"
+                        onClick={() => {
+                          const conds = (cm.conditions ?? []).filter(
+                            (_, i) => i !== idx,
+                          );
+                          updateComputed(cm.id, { conditions: conds });
+                        }}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 text-[10px] text-teal-600"
+                    onClick={() =>
+                      updateComputed(cm.id, {
+                        conditions: [
+                          ...(cm.conditions ?? []),
+                          {
+                            fieldId: '',
+                            operator: 'equals',
+                            compareValue: '',
+                            output: '',
+                          },
+                        ],
+                      })
+                    }
+                  >
+                    <Plus className="h-2.5 w-2.5 mr-0.5" />
+                    Add condition
+                  </Button>
+                  <div>
+                    <Label className="text-[10px] text-teal-600">
+                      Fallback value
+                    </Label>
+                    <Input
+                      value={cm.fallback ?? ''}
+                      onChange={(e) =>
+                        updateComputed(cm.id, { fallback: e.target.value })
+                      }
+                      className="h-5 text-[10px]"
+                      placeholder="Value when no conditions match"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Position settings */}
+              <div className="grid grid-cols-2 gap-1 pt-1 border-t border-teal-200">
+                <div>
+                  <Label className="text-[10px] text-teal-600">Page</Label>
+                  <Input
+                    type="number"
+                    value={cm.page}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { page: Number(e.target.value) })
+                    }
+                    className="h-5 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-teal-600">X</Label>
+                  <Input
+                    type="number"
+                    value={Math.round(cm.x)}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { x: Number(e.target.value) })
+                    }
+                    className="h-5 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-teal-600">Y</Label>
+                  <Input
+                    type="number"
+                    value={Math.round(cm.y)}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { y: Number(e.target.value) })
+                    }
+                    className="h-5 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-teal-600">Width</Label>
+                  <Input
+                    type="number"
+                    value={Math.round(cm.width)}
+                    onChange={(e) =>
+                      updateComputed(cm.id, { width: Number(e.target.value) })
+                    }
+                    className="h-5 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-teal-600">
+                    Font Size
+                  </Label>
+                  <Input
+                    type="number"
+                    value={cm.fontSize ?? 12}
+                    onChange={(e) =>
+                      updateComputed(cm.id, {
+                        fontSize: Number(e.target.value),
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-teal-600">
+                    PDF Field Name
+                  </Label>
+                  <Input
+                    value={cm.pdfFieldName ?? ''}
+                    onChange={(e) =>
+                      updateComputed(cm.id, {
+                        pdfFieldName: e.target.value || undefined,
+                      })
+                    }
+                    className="h-5 text-[10px]"
+                    placeholder="For fillable PDF"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

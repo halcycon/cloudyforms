@@ -6,7 +6,7 @@ import { authMiddleware } from "../middleware/auth";
 import { getFile } from "../lib/r2";
 import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
-import type { DocumentTemplate, FieldMapping } from "./forms";
+import type { DocumentTemplate, FieldMapping, ComputedFieldMapping, BooleanDisplayMode } from "./forms";
 import { slugify, ensureUniqueSlug } from "./forms";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { marked } from "marked";
