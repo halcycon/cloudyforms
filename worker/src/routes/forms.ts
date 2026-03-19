@@ -280,6 +280,7 @@ forms.get("/", authMiddleware, async (c) => {
   const orgId = c.req.query("orgId");
 
   if (!orgId) {
+    console.log(`[FORMS] List failed – missing orgId user=${user.userId}`);
     return c.json({ error: "orgId query parameter is required" }, 400);
   }
 
@@ -304,6 +305,7 @@ forms.get("/", authMiddleware, async (c) => {
 forms.post("/", authMiddleware, zValidator("json", createFormSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
+  console.log(`[FORMS] Create form title="${body.title}" orgId=${body.orgId} user=${user.userId}`);
 
   const role = user.isSuperAdmin
     ? "owner"
@@ -378,6 +380,7 @@ forms.on(["PUT", "PATCH"],
     const user = c.get("user");
     const { formId } = c.req.param();
     const updates = c.req.valid("json");
+    console.log(`[FORMS] Update form formId=${formId} user=${user.userId} fields=${Object.keys(updates).join(",")}`);
 
     const form = await dbQueryFirst<FormRow>(
       c.env.DB,
@@ -438,6 +441,7 @@ forms.on(["PUT", "PATCH"],
 forms.delete("/:formId", authMiddleware, async (c) => {
   const user = c.get("user");
   const { formId } = c.req.param();
+  console.log(`[FORMS] Delete form formId=${formId} user=${user.userId}`);
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
@@ -466,6 +470,7 @@ forms.delete("/:formId", authMiddleware, async (c) => {
 forms.post("/:formId/publish", authMiddleware, async (c) => {
   const user = c.get("user");
   const { formId } = c.req.param();
+  console.log(`[FORMS] Publish form formId=${formId} user=${user.userId}`);
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
@@ -498,6 +503,7 @@ forms.post("/:formId/publish", authMiddleware, async (c) => {
 forms.post("/:formId/unpublish", authMiddleware, async (c) => {
   const user = c.get("user");
   const { formId } = c.req.param();
+  console.log(`[FORMS] Unpublish form formId=${formId} user=${user.userId}`);
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,

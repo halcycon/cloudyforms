@@ -52,6 +52,7 @@ auth.get("/signup-status", async (c) => {
 
 auth.post("/register", zValidator("json", registerSchema), async (c) => {
   const { name, email, password } = c.req.valid("json");
+  console.log(`[AUTH] Registration attempt email=${email}`);
 
   // Check if signups are disabled
   const signupsSetting = await dbQueryFirst<{ value: string }>(
@@ -59,6 +60,7 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
     "SELECT value FROM platform_settings WHERE key = 'signups_enabled'",
   );
   if (signupsSetting && signupsSetting.value === "false") {
+    console.log(`[AUTH] Registration blocked – signups disabled email=${email}`);
     return c.json({ error: "New account registration is currently disabled" }, 403);
   }
 
@@ -72,6 +74,7 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
     if (allowedDomains.length > 0) {
       const emailDomain = email.toLowerCase().split("@")[1];
       if (!emailDomain || !allowedDomains.some((d) => d.toLowerCase() === emailDomain)) {
+        console.log(`[AUTH] Registration blocked – domain not allowed email=${email}`);
         return c.json({ error: "Registration is restricted to certain email domains" }, 403);
       }
     }
@@ -84,6 +87,7 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
   );
 
   if (existing) {
+    console.log(`[AUTH] Registration failed – email in use email=${email}`);
     return c.json({ error: "Email already in use" }, 409);
   }
 
@@ -102,6 +106,8 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
     c.env.JWT_SECRET
   );
 
+  console.log(`[AUTH] Registration successful userId=${id} email=${email}`);
+
   return c.json(
     {
       user: { id, email: email.toLowerCase(), name },
@@ -113,6 +119,7 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
 
 auth.post("/login", zValidator("json", loginSchema), async (c) => {
   const { email, password } = c.req.valid("json");
+  console.log(`[AUTH] Login attempt email=${email}`);
 
   const user = await dbQueryFirst<{
     id: string;
@@ -125,11 +132,13 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
   ]);
 
   if (!user) {
+    console.log(`[AUTH] Login failed – user not found email=${email}`);
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) {
+    console.log(`[AUTH] Login failed – wrong password email=${email}`);
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
@@ -141,6 +150,8 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
     },
     c.env.JWT_SECRET
   );
+
+  console.log(`[AUTH] Login successful userId=${user.id} email=${email}`);
 
   return c.json({
     user: {

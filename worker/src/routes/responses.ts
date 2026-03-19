@@ -113,6 +113,7 @@ const submitSchema = z.object({
 responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) => {
   const { formSlug } = c.req.param();
   const { data, turnstileToken, accessCode } = c.req.valid("json");
+  console.log(`[RESPONSES] Submission attempt slug=${formSlug}`);
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
@@ -121,10 +122,12 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
   );
 
   if (!form) {
+    console.log(`[RESPONSES] Form not found slug=${formSlug}`);
     return c.json({ error: "Form not found" }, 404);
   }
 
   if (form.status !== "published") {
+    console.log(`[RESPONSES] Form not published slug=${formSlug} status=${form.status}`);
     return c.json({ error: "This form is not accepting submissions" }, 403);
   }
 
@@ -200,6 +203,7 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
   );
 
   const responsePayload = { id, formId: form.id, createdAt: now };
+  console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug}`);
 
   // Post-submission side effects (fire and forget)
   const fields = JSON.parse(form.fields) as { id: string; label?: string }[];

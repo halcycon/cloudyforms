@@ -29,6 +29,7 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Bindings }> =
   createMiddleware(async (c, next) => {
     const token = extractToken(c.req.header("Authorization") ?? null);
     if (!token) {
+      console.log(`[AUTH] No token provided for ${c.req.method} ${c.req.path}`);
       return c.json({ error: "Unauthorized" }, 401);
     }
 
@@ -44,6 +45,7 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Bindings }> =
       ]);
 
       if (!user) {
+        console.log(`[AUTH] User not found for token userId=${payload.userId}`);
         return c.json({ error: "User not found" }, 401);
       }
 
@@ -55,7 +57,8 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Bindings }> =
       });
 
       await next();
-    } catch {
+    } catch (err) {
+      console.log(`[AUTH] Invalid token for ${c.req.method} ${c.req.path}: ${err instanceof Error ? err.message : "unknown"}`);
       return c.json({ error: "Invalid token" }, 401);
     }
   });
@@ -96,6 +99,7 @@ export function requireRole(
   return createMiddleware(async (c, next) => {
     const user = c.get("user");
     if (!user) {
+      console.log(`[ROLE] No user context for ${c.req.method} ${c.req.path}`);
       return c.json({ error: "Unauthorized" }, 401);
     }
 
@@ -108,6 +112,7 @@ export function requireRole(
       c.req.param("orgId") ?? c.req.query("orgId");
 
     if (!orgId) {
+      console.log(`[ROLE] Missing orgId for ${c.req.method} ${c.req.path} user=${user.userId}`);
       return c.json({ error: "Organization ID required" }, 400);
     }
 
@@ -118,6 +123,7 @@ export function requireRole(
     );
 
     if (!member) {
+      console.log(`[ROLE] User ${user.userId} is not a member of org ${orgId}`);
       return c.json({ error: "Not a member of this organization" }, 403);
     }
 
@@ -132,6 +138,7 @@ export function requireRole(
     const hasRole = roles.some((r) => userLevel >= (roleHierarchy[r] ?? 99));
 
     if (!hasRole) {
+      console.log(`[ROLE] Insufficient permissions: user=${user.userId} role=${member.role} required=${roles.join(",")}`);
       return c.json({ error: "Insufficient permissions" }, 403);
     }
 
