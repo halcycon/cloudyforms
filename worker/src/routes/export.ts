@@ -329,6 +329,93 @@ function getFieldValue(
   return String(val);
 }
 
+function formatDate(format: string): string {
+  const now = new Date();
+  const day = now.getDate();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  return format
+    .replace("DD", String(day).padStart(2, "0"))
+    .replace("D", String(day))
+    .replace("MMMM", months[month - 1])
+    .replace("MM", String(month).padStart(2, "0"))
+    .replace("YYYY", String(year));
+}
+
+function evaluateComputedField(
+  cm: ComputedFieldMapping,
+  data: Record<string, unknown>,
+  fields: { id: string; label?: string; type?: string }[]
+): string {
+  switch (cm.type) {
+    case "static":
+      return cm.value ?? "";
+
+    case "date":
+      return formatDate(cm.value ?? "DD/MM/YYYY");
+
+    case "calculated": {
+      const fieldIds = cm.calculationFieldIds ?? [];
+      if (cm.calculationType === "count_non_empty") {
+        let count = 0;
+        for (const fid of fieldIds) {
+          const val = getFieldValue(data, fields, fid);
+          if (val.trim()) count++;
+        }
+        return String(count);
+      }
+      if (cm.calculationType === "sum") {
+        let sum = 0;
+        for (const fid of fieldIds) {
+          const val = parseFloat(getFieldValue(data, fields, fid));
+          if (!isNaN(val)) sum += val;
+        }
+        return String(sum);
+      }
+      return cm.fallback ?? "";
+    }
+
+    case "conditional": {
+      for (const cond of cm.conditions ?? []) {
+        const fieldValue = getFieldValue(data, fields, cond.fieldId);
+        let match = false;
+        switch (cond.operator) {
+          case "equals":
+            match = fieldValue === cond.compareValue;
+            break;
+          case "not_equals":
+            match = fieldValue !== cond.compareValue;
+            break;
+          case "contains":
+            match = fieldValue.includes(cond.compareValue);
+            break;
+          case "not_empty":
+            match = fieldValue.trim().length > 0;
+            break;
+          case "empty":
+            match = fieldValue.trim().length === 0;
+            break;
+          case "greater_than":
+            match = parseFloat(fieldValue) > parseFloat(cond.compareValue);
+            break;
+          case "less_than":
+            match = parseFloat(fieldValue) < parseFloat(cond.compareValue);
+            break;
+        }
+        if (match) return cond.output;
+      }
+      return cm.fallback ?? "";
+    }
+
+    default:
+      return cm.fallback ?? "";
+  }
+}
+
 async function generatePdfFromTemplate(
   pdfBytes: ArrayBuffer,
   template: DocumentTemplate,
@@ -367,6 +454,20 @@ async function generatePdfFromTemplate(
           }
         }
       }
+
+      // Also fill computed mappings that target PDF form fields
+      for (const cm of template.computedMappings ?? []) {
+        if (cm.pdfFieldName) {
+          const value = evaluateComputedField(cm, data, fields);
+          try {
+            const textField = pdfForm.getTextField(cm.pdfFieldName);
+            textField.setText(value);
+            hasFilledFormFields = true;
+          } catch {
+            // Not a text field – skip
+          }
+        }
+      }
     }
   } catch {
     // No form fields in the PDF – that's fine, we'll overlay text
@@ -375,6 +476,11 @@ async function generatePdfFromTemplate(
   // Overlay text for any mappings that don't target a PDF form field
   // or when no form fields were successfully filled
   const pages = pdfDoc.getPages();
+
+  // Track shrinkable field widths for shifting subsequent fields on the same line
+  // Key: "page:y" -> running x offset
+  const shrinkOffsets = new Map<string, number>();
+
   for (const mapping of template.fieldMappings) {
     if (hasFilledFormFields && mapping.pdfFieldName) continue;
 
@@ -384,18 +490,96 @@ async function generatePdfFromTemplate(
     const page = pages[pageIndex];
     const { height } = page.getSize();
     const value = getFieldValue(data, fields, mapping.fieldId);
-    if (!value) continue;
+    const fieldDef = fields.find((f) => f.id === mapping.fieldId);
+    const isBoolean = fieldDef?.type === "checkbox";
 
     const fontSize = mapping.fontSize ?? 12;
-    const color = mapping.fontColor ? hexToRgb(mapping.fontColor) : { r: 0, g: 0, b: 0 };
+    const color = mapping.fontColor
+      ? hexToRgb(mapping.fontColor)
+      : { r: 0, g: 0, b: 0 };
 
-    page.drawText(value, {
-      x: mapping.x,
+    // Handle boolean display modes
+    if (isBoolean && mapping.booleanDisplay && mapping.booleanDisplay !== "text") {
+      const isTruthy = isTruthyValue(value);
+      const symbol = mapping.booleanDisplay === "checkmark" ? "✓" : "✕";
+
+      // Determine which position to use based on true/false
+      const posMapping = isTruthy
+        ? mapping.booleanTrueMapping ?? mapping
+        : mapping.booleanFalseMapping ?? mapping;
+
+      const posPage = (posMapping.page || mapping.page || 1) - 1;
+      if (posPage >= 0 && posPage < pages.length) {
+        const targetPage = pages[posPage];
+        const { height: pH } = targetPage.getSize();
+        targetPage.drawText(symbol, {
+          x: posMapping.x,
+          y: pH - posMapping.y - fontSize,
+          size: fontSize,
+          font,
+          color: rgb(color.r, color.g, color.b),
+        });
+      }
+      continue;
+    }
+
+    if (!value) continue;
+
+    // Handle boolean text display
+    const displayValue =
+      isBoolean && (!mapping.booleanDisplay || mapping.booleanDisplay === "text")
+        ? (isTruthyValue(value) ? "Yes" : "No")
+        : value;
+
+    // Calculate actual x considering shrinkable offset
+    const yKey = `${pageIndex}:${Math.round(mapping.y)}`;
+    let xPos = mapping.x;
+    const offsetForLine = shrinkOffsets.get(yKey);
+    if (offsetForLine !== undefined && mapping.shrinkable) {
+      xPos = offsetForLine;
+    }
+
+    page.drawText(displayValue, {
+      x: xPos,
       y: height - mapping.y - fontSize,
       size: fontSize,
       font,
       color: rgb(color.r, color.g, color.b),
       maxWidth: mapping.width || undefined,
+    });
+
+    // If this field is shrinkable, track its actual rendered width
+    if (mapping.shrinkable) {
+      const textWidth = font.widthOfTextAtSize(displayValue, fontSize);
+      const gap = fontSize * 0.3; // small gap between adjacent fields
+      shrinkOffsets.set(yKey, xPos + textWidth + gap);
+    }
+  }
+
+  // Overlay computed/static field values
+  for (const cm of template.computedMappings ?? []) {
+    if (hasFilledFormFields && cm.pdfFieldName) continue;
+
+    const pageIndex = (cm.page || 1) - 1;
+    if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+    const page = pages[pageIndex];
+    const { height } = page.getSize();
+    const value = evaluateComputedField(cm, data, fields);
+    if (!value) continue;
+
+    const fontSize = cm.fontSize ?? 12;
+    const color = cm.fontColor
+      ? hexToRgb(cm.fontColor)
+      : { r: 0, g: 0, b: 0 };
+
+    page.drawText(value, {
+      x: cm.x,
+      y: height - cm.y - fontSize,
+      size: fontSize,
+      font,
+      color: rgb(color.r, color.g, color.b),
+      maxWidth: cm.width || undefined,
     });
   }
 
