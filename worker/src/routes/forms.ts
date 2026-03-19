@@ -62,8 +62,38 @@ export interface BrandingConfig {
   showPoweredBy?: boolean;
 }
 
+export type BooleanDisplayMode = "text" | "checkmark" | "cross";
+
 export interface FieldMapping {
   fieldId: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  fontColor?: string;
+  pdfFieldName?: string;
+  shrinkable?: boolean;
+  booleanDisplay?: BooleanDisplayMode;
+  booleanTrueMapping?: { page: number; x: number; y: number };
+  booleanFalseMapping?: { page: number; x: number; y: number };
+}
+
+export interface ComputedFieldMapping {
+  id: string;
+  label: string;
+  type: "static" | "date" | "calculated" | "conditional";
+  value?: string;
+  conditions?: {
+    fieldId: string;
+    operator: "equals" | "not_equals" | "contains" | "not_empty" | "empty" | "greater_than" | "less_than";
+    compareValue: string;
+    output: string;
+  }[];
+  calculationType?: "count_non_empty" | "sum" | "expression";
+  calculationFieldIds?: string[];
+  fallback?: string;
   page: number;
   x: number;
   y: number;
@@ -81,6 +111,8 @@ export interface DocumentTemplate {
   fileName?: string;
   markdownContent?: string;
   fieldMappings: FieldMapping[];
+  computedMappings?: ComputedFieldMapping[];
+  detectedPdfFields?: string[];
   pageCount?: number;
 }
 

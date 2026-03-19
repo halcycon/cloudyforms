@@ -522,6 +522,121 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
             </div>
           </>
         )}
+        {/* Repeatable Group */}
+        {!isLayout && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Repeatable Group</Label>
+                <Switch
+                  checked={!!field.repeatableGroup}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      onChange({
+                        repeatableGroup: {
+                          isGroupStart: true,
+                          groupId: `group_${crypto.randomUUID().slice(0, 8)}`,
+                          maxRepetitions: 9,
+                          minRepetitions: 1,
+                        },
+                      });
+                    } else {
+                      onChange({ repeatableGroup: undefined });
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                Allow users to repeat a set of fields (e.g. multiple addresses)
+              </p>
+
+              {field.repeatableGroup && (
+                <div className="space-y-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-indigo-700">Group ID</Label>
+                    <Input
+                      value={field.repeatableGroup.groupId}
+                      onChange={(e) =>
+                        onChange({
+                          repeatableGroup: {
+                            ...field.repeatableGroup!,
+                            groupId: e.target.value,
+                          },
+                        })
+                      }
+                      className="h-7 text-xs"
+                      placeholder="Shared group identifier"
+                    />
+                    <p className="text-[10px] text-indigo-400">
+                      Fields sharing this Group ID will repeat together
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={field.repeatableGroup.isGroupStart}
+                      onCheckedChange={(isGroupStart) =>
+                        onChange({
+                          repeatableGroup: {
+                            ...field.repeatableGroup!,
+                            isGroupStart,
+                          },
+                        })
+                      }
+                    />
+                    <Label className="text-xs text-indigo-700">
+                      First field in group
+                    </Label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-indigo-700">
+                        Max repetitions
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={field.repeatableGroup.maxRepetitions}
+                        onChange={(e) =>
+                          onChange({
+                            repeatableGroup: {
+                              ...field.repeatableGroup!,
+                              maxRepetitions: Number(e.target.value),
+                            },
+                          })
+                        }
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-indigo-700">
+                        Min repetitions
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={field.repeatableGroup.minRepetitions ?? 1}
+                        onChange={(e) =>
+                          onChange({
+                            repeatableGroup: {
+                              ...field.repeatableGroup!,
+                              minRepetitions: Number(e.target.value),
+                            },
+                          })
+                        }
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
