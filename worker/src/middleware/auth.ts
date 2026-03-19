@@ -57,8 +57,8 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Bindings }> =
       });
 
       await next();
-    } catch (err) {
-      console.log(`[AUTH] Invalid token for ${c.req.method} ${c.req.path}: ${err instanceof Error ? err.message : "unknown"}`);
+    } catch {
+      console.log(`[AUTH] Invalid token for ${c.req.method} ${c.req.path}`);
       return c.json({ error: "Invalid token" }, 401);
     }
   });

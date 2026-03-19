@@ -22,10 +22,9 @@ export const loggerMiddleware = createMiddleware<{ Bindings: Bindings }>(
       ? "?" + new URLSearchParams(query as Record<string, string>).toString()
       : "";
     const origin = c.req.header("Origin") ?? "-";
-    const userAgent = c.req.header("User-Agent") ?? "-";
 
     console.log(
-      `→ ${method} ${path}${qs} origin=${origin} ua=${userAgent.slice(0, 80)}`
+      `→ ${method} ${path}${qs} origin=${origin}`
     );
 
     await next();
