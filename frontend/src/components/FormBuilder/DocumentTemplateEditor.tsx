@@ -304,6 +304,60 @@ export function DocumentTemplateEditor({
       });
   }
 
+  // Render computed mapping position indicators on the PDF
+  function renderComputedOverlays() {
+    if (!pdfContainerRef.current) return null;
+    const canvas = pdfContainerRef.current.querySelector('canvas');
+    if (!canvas) return null;
+    const computedMappings = config.computedMappings ?? [];
+    if (computedMappings.length === 0) return null;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const containerRect = pdfContainerRef.current.getBoundingClientRect();
+    const scaleX = canvasRect.width / A4_WIDTH_POINTS;
+    const scaleY = canvasRect.height / A4_HEIGHT_POINTS;
+    const offsetX = canvasRect.left - containerRect.left;
+    const offsetY = canvasRect.top - containerRect.top;
+
+    return computedMappings
+      .filter((cm) => {
+        // Use detected PDF field position when pdfFieldName is set
+        if (cm.pdfFieldName) {
+          const pos = detectedFieldPositions.current[cm.pdfFieldName];
+          return pos ? pos.page === currentPage : cm.page === currentPage;
+        }
+        return cm.page === currentPage;
+      })
+      .map((cm) => {
+        // If a PDF field is selected, use its detected position (takes precedence)
+        const pdfPos = cm.pdfFieldName
+          ? detectedFieldPositions.current[cm.pdfFieldName]
+          : undefined;
+        const x = pdfPos?.x ?? cm.x;
+        const y = pdfPos?.y ?? cm.y;
+        const width = pdfPos?.width ?? cm.width;
+        const height = pdfPos?.height ?? cm.height;
+
+        return (
+          <div
+            key={cm.id}
+            className="absolute border-2 border-dashed rounded px-1 text-xs flex items-center gap-1 select-none border-teal-400 bg-teal-100/80 text-teal-800"
+            style={{
+              left: offsetX + x * scaleX,
+              top: offsetY + y * scaleY,
+              width: width * scaleX,
+              height: Math.max(height * scaleY, 18),
+              fontSize: 10,
+            }}
+            title={`${cm.label}${cm.pdfFieldName ? ` → ${cm.pdfFieldName}` : ''}`}
+          >
+            <Type className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{cm.label}</span>
+          </div>
+        );
+      });
+  }
+
   return (
     <div className="p-3 space-y-4">
       {/* Enable toggle */}
@@ -477,6 +531,7 @@ export function DocumentTemplateEditor({
                           />
                         </Document>
                         {renderFieldOverlays()}
+                        {renderComputedOverlays()}
                       </div>
 
                       {/* Field list for placement */}
@@ -634,6 +689,7 @@ export function DocumentTemplateEditor({
                         currentPage={currentPage}
                         onChange={(computedMappings) => update({ computedMappings })}
                         detectedPdfFields={detectedPdfFields}
+                        detectedFieldPositions={detectedFieldPositions.current}
                       />
 
                       {/* Selected mapping properties */}
@@ -990,12 +1046,14 @@ function ComputedFieldsPanel({
   currentPage,
   onChange,
   detectedPdfFields,
+  detectedFieldPositions,
 }: {
   computedMappings: ComputedFieldMapping[];
   fields: FormField[];
   currentPage: number;
   onChange: (mappings: ComputedFieldMapping[]) => void;
   detectedPdfFields: string[];
+  detectedFieldPositions: Record<string, { page: number; x: number; y: number; width: number; height: number }>;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -1449,11 +1507,22 @@ function ComputedFieldsPanel({
                     <select
                       className="h-5 w-full text-[10px] rounded border border-teal-300 bg-white px-1"
                       value={cm.pdfFieldName ?? ''}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const fieldName = e.target.value || undefined;
+                        const pos = fieldName
+                          ? detectedFieldPositions[fieldName]
+                          : undefined;
                         updateComputed(cm.id, {
-                          pdfFieldName: e.target.value || undefined,
-                        })
-                      }
+                          pdfFieldName: fieldName,
+                          ...(pos && {
+                            page: pos.page,
+                            x: pos.x,
+                            y: pos.y,
+                            width: pos.width,
+                            height: pos.height,
+                          }),
+                        });
+                      }}
                     >
                       <option value="">None (text overlay)</option>
                       {detectedPdfFields.map((name) => (
