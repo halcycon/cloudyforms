@@ -55,6 +55,10 @@ export function DocumentTemplateEditor({
   const [detectedPdfFields, setDetectedPdfFields] = useState<string[]>(
     config.detectedPdfFields ?? [],
   );
+  /** Local-only map of detected PDF field name → position info (not persisted) */
+  const detectedFieldPositions = useRef<
+    Record<string, { page: number; x: number; y: number; width: number; height: number }>
+  >({});
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,15 +129,30 @@ export function DocumentTemplateEditor({
       const loadingTask = pdfjs.getDocument(url);
       const pdf = await loadingTask.promise;
       const fieldNames: string[] = [];
+      const positions: Record<string, { page: number; x: number; y: number; width: number; height: number }> = {};
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+        const pageHeight = viewport.height;
         const annotations = await page.getAnnotations();
         for (const annot of annotations) {
           if (annot.fieldName && annot.subtype === 'Widget') {
             fieldNames.push(annot.fieldName);
+            // Extract position from annotation rect [x1, y1, x2, y2] (PDF bottom-left origin)
+            if (annot.rect) {
+              const [x1, y1, x2, y2] = annot.rect;
+              positions[annot.fieldName] = {
+                page: i,
+                x: x1,
+                y: pageHeight - y2, // Convert from bottom-left to top-left origin
+                width: x2 - x1,
+                height: y2 - y1,
+              };
+            }
           }
         }
       }
+      detectedFieldPositions.current = positions;
       if (fieldNames.length > 0) {
         setDetectedPdfFields(fieldNames);
         update({ detectedPdfFields: fieldNames });
@@ -538,6 +557,8 @@ export function DocumentTemplateEditor({
                             {detectedPdfFields.map((pdfFieldName) => {
                               const alreadyMapped = config.fieldMappings.some(
                                 (m) => m.pdfFieldName === pdfFieldName,
+                              ) || (config.computedMappings ?? []).some(
+                                (m) => m.pdfFieldName === pdfFieldName,
                               );
                               return (
                                 <div
@@ -567,13 +588,14 @@ export function DocumentTemplateEditor({
                                         if (existing) {
                                           updateFieldMapping(fieldId, { pdfFieldName });
                                         } else {
+                                          const pos = detectedFieldPositions.current[pdfFieldName];
                                           const newMapping: FieldMapping = {
                                             fieldId,
-                                            page: currentPage,
-                                            x: 50,
-                                            y: 50,
-                                            width: 200,
-                                            height: 20,
+                                            page: pos?.page ?? currentPage,
+                                            x: pos?.x ?? 50,
+                                            y: pos?.y ?? 50,
+                                            width: pos?.width ?? 200,
+                                            height: pos?.height ?? 20,
                                             fontSize: 12,
                                             fontColor: '#000000',
                                             pdfFieldName,
@@ -611,6 +633,7 @@ export function DocumentTemplateEditor({
                         fields={dataFields}
                         currentPage={currentPage}
                         onChange={(computedMappings) => update({ computedMappings })}
+                        detectedPdfFields={detectedPdfFields}
                       />
 
                       {/* Selected mapping properties */}
@@ -623,6 +646,7 @@ export function DocumentTemplateEditor({
                           onChange={(updates) =>
                             updateFieldMapping(selectedMappingId, updates)
                           }
+                          detectedPdfFields={detectedPdfFields}
                         />
                       )}
                     </div>
@@ -704,10 +728,12 @@ function FieldMappingEditor({
   mapping,
   field,
   onChange,
+  detectedPdfFields,
 }: {
   mapping?: FieldMapping;
   field?: FormField;
   onChange: (updates: Partial<FieldMapping>) => void;
+  detectedPdfFields: string[];
 }) {
   if (!mapping || !field) return null;
 
@@ -760,13 +786,28 @@ function FieldMappingEditor({
         <Label className="text-[10px] text-blue-600">
           PDF Form Field Name (for fillable PDFs)
         </Label>
-        <Input
-          type="text"
-          value={mapping.pdfFieldName ?? ''}
-          onChange={(e) => onChange({ pdfFieldName: e.target.value || undefined })}
-          className="h-6 text-xs"
-          placeholder="Leave empty for text overlay"
-        />
+        {detectedPdfFields.length > 0 ? (
+          <select
+            className="h-6 w-full text-xs rounded border border-blue-300 bg-white px-1"
+            value={mapping.pdfFieldName ?? ''}
+            onChange={(e) => onChange({ pdfFieldName: e.target.value || undefined })}
+          >
+            <option value="">None (text overlay)</option>
+            {detectedPdfFields.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <Input
+            type="text"
+            value={mapping.pdfFieldName ?? ''}
+            onChange={(e) => onChange({ pdfFieldName: e.target.value || undefined })}
+            className="h-6 text-xs"
+            placeholder="Leave empty for text overlay"
+          />
+        )}
       </div>
       <div>
         <Label className="text-[10px] text-blue-600">Font Color</Label>
@@ -948,11 +989,13 @@ function ComputedFieldsPanel({
   fields,
   currentPage,
   onChange,
+  detectedPdfFields,
 }: {
   computedMappings: ComputedFieldMapping[];
   fields: FormField[];
   currentPage: number;
   onChange: (mappings: ComputedFieldMapping[]) => void;
+  detectedPdfFields: string[];
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -1141,38 +1184,78 @@ function ComputedFieldsPanel({
                         Count non-empty fields
                       </option>
                       <option value="sum">Sum of numeric fields</option>
+                      <option value="expression">
+                        Expression (combine fields)
+                      </option>
                     </select>
                   </div>
-                  <div>
-                    <Label className="text-[10px] text-teal-600">
-                      Fields to include
-                    </Label>
-                    <div className="max-h-20 overflow-y-auto space-y-0.5">
-                      {fields.map((f) => (
-                        <label
-                          key={f.id}
-                          className="flex items-center gap-1 text-[10px]"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={
-                              cm.calculationFieldIds?.includes(f.id) ?? false
-                            }
-                            onChange={(e) => {
-                              const ids = cm.calculationFieldIds ?? [];
+                  {cm.calculationType === 'expression' ? (
+                    <div>
+                      <Label className="text-[10px] text-teal-600">
+                        Expression template
+                      </Label>
+                      <div className="flex flex-wrap gap-0.5 mb-1">
+                        {fields.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="inline-flex items-center rounded bg-teal-100 border border-teal-300 px-1 py-0 text-[9px] font-medium text-teal-700 hover:bg-teal-200 transition-colors"
+                            onClick={() =>
                               updateComputed(cm.id, {
-                                calculationFieldIds: e.target.checked
-                                  ? [...ids, f.id]
-                                  : ids.filter((i) => i !== f.id),
-                              });
-                            }}
-                            className="h-2.5 w-2.5"
-                          />
-                          {f.label}
-                        </label>
-                      ))}
+                                value: `${cm.value ?? ''}{{${f.label}}}`,
+                              })
+                            }
+                            title={`Insert {{${f.label}}}`}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        value={cm.value ?? ''}
+                        onChange={(e) =>
+                          updateComputed(cm.id, { value: e.target.value })
+                        }
+                        className="h-5 text-[10px] font-mono"
+                        placeholder="e.g. {{First Name}} {{Last Name}}"
+                      />
+                      <p className="text-[9px] text-teal-500 mt-0.5">
+                        Use {'{{Field Label}}'} to insert field values. Text
+                        between placeholders is kept as-is.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <Label className="text-[10px] text-teal-600">
+                        Fields to include
+                      </Label>
+                      <div className="max-h-20 overflow-y-auto space-y-0.5">
+                        {fields.map((f) => (
+                          <label
+                            key={f.id}
+                            className="flex items-center gap-1 text-[10px]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                cm.calculationFieldIds?.includes(f.id) ?? false
+                              }
+                              onChange={(e) => {
+                                const ids = cm.calculationFieldIds ?? [];
+                                updateComputed(cm.id, {
+                                  calculationFieldIds: e.target.checked
+                                    ? [...ids, f.id]
+                                    : ids.filter((i) => i !== f.id),
+                                });
+                              }}
+                              className="h-2.5 w-2.5"
+                            />
+                            {f.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1362,16 +1445,35 @@ function ComputedFieldsPanel({
                   <Label className="text-[10px] text-teal-600">
                     PDF Field Name
                   </Label>
-                  <Input
-                    value={cm.pdfFieldName ?? ''}
-                    onChange={(e) =>
-                      updateComputed(cm.id, {
-                        pdfFieldName: e.target.value || undefined,
-                      })
-                    }
-                    className="h-5 text-[10px]"
-                    placeholder="For fillable PDF"
-                  />
+                  {detectedPdfFields.length > 0 ? (
+                    <select
+                      className="h-5 w-full text-[10px] rounded border border-teal-300 bg-white px-1"
+                      value={cm.pdfFieldName ?? ''}
+                      onChange={(e) =>
+                        updateComputed(cm.id, {
+                          pdfFieldName: e.target.value || undefined,
+                        })
+                      }
+                    >
+                      <option value="">None (text overlay)</option>
+                      {detectedPdfFields.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      value={cm.pdfFieldName ?? ''}
+                      onChange={(e) =>
+                        updateComputed(cm.id, {
+                          pdfFieldName: e.target.value || undefined,
+                        })
+                      }
+                      className="h-5 text-[10px]"
+                      placeholder="For fillable PDF"
+                    />
+                  )}
                 </div>
               </div>
             </div>

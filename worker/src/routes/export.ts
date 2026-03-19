@@ -377,6 +377,17 @@ function evaluateComputedField(
         }
         return String(sum);
       }
+      if (cm.calculationType === "expression" && cm.value) {
+        // Replace {{Field Label}} placeholders with actual field values
+        return cm.value.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
+          const trimmed = label.trim();
+          const field = fields.find(
+            (f) => (f.label ?? "").toLowerCase() === trimmed.toLowerCase()
+          );
+          if (!field) return "";
+          return getFieldValue(data, fields, field.id);
+        });
+      }
       return cm.fallback ?? "";
     }
 
