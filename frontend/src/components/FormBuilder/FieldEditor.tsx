@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormField, OptionList } from '@/lib/types';
 import { optionLists as optionListsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { parseJsonOptions } from '@/lib/utils';
+import { parseJsonOptions, detectJsonFields, optionsToJson } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, FileJson } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
@@ -25,12 +25,16 @@ interface FieldEditorProps {
 }
 
 export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
-  const [newOption, setNewOption] = useState('');
+  const [newOptionLabel, setNewOptionLabel] = useState('');
+  const [newOptionValue, setNewOptionValue] = useState('');
   const { currentOrg } = useStore();
   const [availableLists, setAvailableLists] = useState<OptionList[]>([]);
   const [showJsonPaste, setShowJsonPaste] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [detectedFields, setDetectedFields] = useState<string[] | null>(null);
+  const [labelField, setLabelField] = useState('');
+  const [valueField, setValueField] = useState('');
 
   useEffect(() => {
     if (!currentOrg?.id) return;
@@ -38,10 +42,12 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   }, [currentOrg?.id]);
 
   function addOption() {
-    if (!newOption.trim()) return;
-    const opt = { label: newOption.trim(), value: newOption.trim().toLowerCase().replace(/\s+/g, '_') };
-    onChange({ options: [...(field.options ?? []), opt] });
-    setNewOption('');
+    if (!newOptionLabel.trim()) return;
+    const label = newOptionLabel.trim();
+    const value = newOptionValue.trim() || label.toLowerCase().replace(/\s+/g, '_');
+    onChange({ options: [...(field.options ?? []), { label, value }] });
+    setNewOptionLabel('');
+    setNewOptionValue('');
   }
 
   function removeOption(index: number) {
@@ -54,19 +60,59 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
     onChange({ options: opts });
   }
 
+  function toggleDefault(index: number) {
+    const opts = (field.options ?? []).map((opt, i) => {
+      if (i === index) {
+        return opt.default ? { label: opt.label, value: opt.value } : { ...opt, default: true as const };
+      }
+      // Remove default from all others
+      const { default: _, ...rest } = opt;
+      return rest;
+    });
+    onChange({ options: opts });
+  }
+
+  function openJsonPaste() {
+    // Pre-populate with existing options
+    if (field.options && field.options.length > 0) {
+      setJsonText(optionsToJson(field.options));
+    } else {
+      setJsonText('');
+    }
+    setDetectedFields(null);
+    setLabelField('');
+    setValueField('');
+    setJsonError(null);
+    setShowJsonPaste(true);
+  }
+
+  function handleJsonChange(text: string) {
+    setJsonText(text);
+    setJsonError(null);
+    // Detect fields for mapping
+    const fields = detectJsonFields(text);
+    setDetectedFields(fields);
+    if (fields && fields.length >= 2) {
+      setLabelField((prev) => (prev && fields.includes(prev) ? prev : fields[0]));
+      setValueField((prev) => (prev && fields.includes(prev) ? prev : fields[1]));
+    }
+  }
+
   function handleImportJson() {
     try {
-      const options = parseJsonOptions(jsonText);
-      if (options.length === 0) {
+      const mapping = detectedFields ? { label: labelField, value: valueField } : undefined;
+      const imported = parseJsonOptions(jsonText, mapping?.label, mapping?.value);
+      if (imported.length === 0) {
         setJsonError('No valid options found in JSON');
         return;
       }
-      onChange({ options: [...(field.options ?? []), ...options] });
+      onChange({ options: imported });
       setJsonText('');
       setJsonError(null);
+      setDetectedFields(null);
       setShowJsonPaste(false);
     } catch {
-      setJsonError('Invalid JSON. Expected an array of strings, array of {label, value} objects, or a key→value object.');
+      setJsonError('Invalid JSON. Expected an array of strings, array of {label, value} objects, or key→value object.');
     }
   }
 
@@ -252,7 +298,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                       size="sm"
                       variant="ghost"
                       className="h-6 text-xs gap-1"
-                      onClick={() => { setShowJsonPaste(!showJsonPaste); setJsonError(null); }}
+                      onClick={() => showJsonPaste ? setShowJsonPaste(false) : openJsonPaste()}
                     >
                       <FileJson className="h-3.5 w-3.5" />
                       {showJsonPaste ? 'Manual' : 'Paste JSON'}
@@ -263,14 +309,48 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                     <div className="space-y-2">
                       <Textarea
                         value={jsonText}
-                        onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }}
-                        placeholder={'[\n  "Option A",\n  "Option B"\n]'}
+                        onChange={(e) => handleJsonChange(e.target.value)}
+                        placeholder={'[\n  {"label": "Option A", "value": "a"},\n  {"label": "Option B", "value": "b", "default": true}\n]'}
                         rows={5}
                         className="text-xs font-mono"
                       />
                       {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
+
+                      {detectedFields && detectedFields.length >= 2 && (
+                        <div className="space-y-1.5 p-2 border rounded bg-gray-50">
+                          <p className="text-[10px] font-medium text-gray-600">Map JSON fields:</p>
+                          <div className="flex gap-2">
+                            <div className="flex-1 space-y-0.5">
+                              <label className="text-[10px] text-gray-500">Label</label>
+                              <select
+                                value={labelField}
+                                onChange={(e) => setLabelField(e.target.value)}
+                                className="w-full h-7 rounded border border-gray-300 text-xs px-1"
+                              >
+                                {detectedFields.map((f) => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex-1 space-y-0.5">
+                              <label className="text-[10px] text-gray-500">Value</label>
+                              <select
+                                value={valueField}
+                                onChange={(e) => setValueField(e.target.value)}
+                                className="w-full h-7 rounded border border-gray-300 text-xs px-1"
+                              >
+                                {detectedFields.map((f) => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-[10px] text-gray-400">
-                        Accepts: array of strings, array of {'{label, value}'} objects, or key→value object.
+                        Accepts: array of strings, {'{label, value}'} objects, or objects with custom fields.
+                        Add {'"default": true'} to set a default option.
                       </p>
                       <Button size="sm" variant="outline" onClick={handleImportJson} className="w-full">
                         Import Options
@@ -279,27 +359,48 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                   ) : (
                     <>
                       {field.options?.map((opt, i) => (
-                        <div key={i} className="flex items-center gap-2">
+                        <div key={i} className="flex items-center gap-1.5">
                           <Input
                             value={opt.label}
                             onChange={(e) => updateOption(i, 'label', e.target.value)}
                             placeholder="Label"
-                            className="flex-1"
+                            className="flex-1 h-7 text-xs"
                           />
+                          <Input
+                            value={opt.value}
+                            onChange={(e) => updateOption(i, 'value', e.target.value)}
+                            placeholder="Value"
+                            className="flex-1 h-7 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleDefault(i)}
+                            title={opt.default ? 'Remove default' : 'Set as default'}
+                            className={`flex-shrink-0 p-0.5 rounded ${opt.default ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
+                          >
+                            <Star className="h-3.5 w-3.5" fill={opt.default ? 'currentColor' : 'none'} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => removeOption(i)}
                             className="text-gray-400 hover:text-red-500 flex-shrink-0"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5">
                         <Input
-                          value={newOption}
-                          onChange={(e) => setNewOption(e.target.value)}
-                          placeholder="New option"
+                          value={newOptionLabel}
+                          onChange={(e) => setNewOptionLabel(e.target.value)}
+                          placeholder="Label"
+                          onKeyDown={(e) => e.key === 'Enter' && addOption()}
+                          className="flex-1"
+                        />
+                        <Input
+                          value={newOptionValue}
+                          onChange={(e) => setNewOptionValue(e.target.value)}
+                          placeholder="Value (auto)"
                           onKeyDown={(e) => e.key === 'Enter' && addOption()}
                           className="flex-1"
                         />

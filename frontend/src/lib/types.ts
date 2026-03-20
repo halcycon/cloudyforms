@@ -55,7 +55,7 @@ export interface FormField {
   placeholder?: string;
   description?: string;
   required: boolean;
-  options?: { label: string; value: string }[];
+  options?: { label: string; value: string; default?: boolean }[];
   validation?: {
     min?: number;
     max?: number;
@@ -174,7 +174,7 @@ export interface OptionList {
   orgId?: string;
   name: string;
   description?: string;
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; default?: boolean }[];
   createdAt: string;
   updatedAt: string;
 }
