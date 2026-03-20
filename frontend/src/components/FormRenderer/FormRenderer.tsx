@@ -195,6 +195,26 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
     setGroupRowCounts(initial);
   }, [form.fields]);
 
+  // Initialize default values from options with default: true
+  useEffect(() => {
+    const defaults: Record<string, unknown> = {};
+    for (const f of form.fields) {
+      if (f.options) {
+        const defaultOpt = f.options.find((o) => o.default);
+        if (defaultOpt) {
+          if (f.type === 'multiselect') {
+            defaults[f.id] = [defaultOpt.value];
+          } else {
+            defaults[f.id] = defaultOpt.value;
+          }
+        }
+      }
+    }
+    if (Object.keys(defaults).length > 0) {
+      setFieldValues((prev) => ({ ...defaults, ...prev }));
+    }
+  }, [form.fields]);
+
   const bgColor = form.branding.backgroundColor ?? '#f9fafb';
   const primaryColor = form.branding.primaryColor ?? '#4f46e5';
   const textColor = form.branding.textColor ?? '#0f172a';
