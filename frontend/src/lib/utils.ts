@@ -185,7 +185,7 @@ export function optionsToJson(
   options: { label: string; value: string; default?: boolean }[],
 ): string {
   const arr = options.map((o) => {
-    const obj: Record<string, string | boolean> = { label: o.label, value: o.value };
+    const obj: { label: string; value: string; default?: boolean } = { label: o.label, value: o.value };
     if (o.default) obj.default = true;
     return obj;
   });
