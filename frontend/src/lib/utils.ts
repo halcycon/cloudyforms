@@ -64,3 +64,49 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .substring(0, 2);
 }
+
+/** Sanitise a single string value: strip HTML tags and trim whitespace. */
+export function sanitizeOptionString(value: unknown): string {
+  if (typeof value !== 'string') return String(value ?? '');
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
+/**
+ * Parse a JSON string into an array of {label, value} options.
+ * Accepts:
+ *   - An array of strings, e.g. ["Red","Green","Blue"]
+ *   - An array of {label, value} objects, e.g. [{"label":"Red","value":"red"}]
+ *   - An object of key→label pairs, e.g. {"us":"United States","uk":"United Kingdom"}
+ * Sanitises all values to prevent injection.
+ */
+export function parseJsonOptions(raw: string): { label: string; value: string }[] {
+  const parsed: unknown = JSON.parse(raw);
+
+  if (Array.isArray(parsed)) {
+    return parsed.map((item) => {
+      if (typeof item === 'string') {
+        const label = sanitizeOptionString(item);
+        return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+      }
+      if (item && typeof item === 'object' && 'label' in item) {
+        const obj = item as Record<string, unknown>;
+        const label = sanitizeOptionString(obj.label);
+        const value = obj.value ? sanitizeOptionString(obj.value) : label.toLowerCase().replace(/\s+/g, '_');
+        return { label, value };
+      }
+      const label = sanitizeOptionString(item);
+      return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+    }).filter((o) => o.label.length > 0);
+  }
+
+  if (parsed && typeof parsed === 'object') {
+    return Object.entries(parsed as Record<string, unknown>)
+      .map(([key, val]) => ({
+        value: sanitizeOptionString(key),
+        label: sanitizeOptionString(val),
+      }))
+      .filter((o) => o.label.length > 0);
+  }
+
+  throw new Error('JSON must be an array or object');
+}

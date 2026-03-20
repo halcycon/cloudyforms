@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormField, OptionList } from '@/lib/types';
 import { optionLists as optionListsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { parseJsonOptions } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,52 +17,6 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, FileJson } from 'lucide-react';
-
-/** Sanitise a single string value: strip HTML tags and trim whitespace. */
-function sanitizeString(value: unknown): string {
-  if (typeof value !== 'string') return String(value ?? '');
-  return value.replace(/<[^>]*>/g, '').trim();
-}
-
-/**
- * Parse a JSON string into an array of {label, value} options.
- * Accepts:
- *   - An array of strings, e.g. ["Red","Green","Blue"]
- *   - An array of {label, value} objects, e.g. [{"label":"Red","value":"red"}]
- *   - An object of key→label pairs, e.g. {"us":"United States","uk":"United Kingdom"}
- * Sanitises all values to prevent injection.
- */
-function parseJsonOptions(raw: string): { label: string; value: string }[] {
-  const parsed: unknown = JSON.parse(raw);
-
-  if (Array.isArray(parsed)) {
-    return parsed.map((item) => {
-      if (typeof item === 'string') {
-        const label = sanitizeString(item);
-        return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
-      }
-      if (item && typeof item === 'object' && 'label' in item) {
-        const obj = item as Record<string, unknown>;
-        const label = sanitizeString(obj.label);
-        const value = obj.value ? sanitizeString(obj.value) : label.toLowerCase().replace(/\s+/g, '_');
-        return { label, value };
-      }
-      const label = sanitizeString(item);
-      return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
-    }).filter((o) => o.label.length > 0);
-  }
-
-  if (parsed && typeof parsed === 'object') {
-    return Object.entries(parsed as Record<string, unknown>)
-      .map(([key, val]) => ({
-        value: sanitizeString(key),
-        label: sanitizeString(val),
-      }))
-      .filter((o) => o.label.length > 0);
-  }
-
-  throw new Error('JSON must be an array or object');
-}
 
 interface FieldEditorProps {
   field: FormField;
@@ -315,7 +270,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                       />
                       {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
                       <p className="text-[10px] text-gray-400">
-                        Accepts: array of strings, array of {'{'}&quot;label&quot;, &quot;value&quot;{'}'} objects, or key→value object.
+                        Accepts: array of strings, array of {'{label, value}'} objects, or key→value object.
                       </p>
                       <Button size="sm" variant="outline" onClick={handleImportJson} className="w-full">
                         Import Options

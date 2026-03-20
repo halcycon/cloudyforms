@@ -3,7 +3,7 @@ import { Plus, Trash2, Pencil, ListOrdered, FileJson } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { optionLists as optionListsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { formatDateShort } from '@/lib/utils';
+import { formatDateShort, parseJsonOptions } from '@/lib/utils';
 import type { OptionList } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,43 +94,9 @@ export default function OptionListsPage() {
     setOptions((prev) => prev.map((opt, i) => i === index ? { ...opt, label } : opt));
   }
 
-  /** Sanitise a single string value: strip HTML tags and trim whitespace. */
-  function sanitizeString(value: unknown): string {
-    if (typeof value !== 'string') return String(value ?? '');
-    return value.replace(/<[^>]*>/g, '').trim();
-  }
-
   function handleImportJson() {
     try {
-      const parsed: unknown = JSON.parse(jsonText);
-      let imported: { label: string; value: string }[] = [];
-
-      if (Array.isArray(parsed)) {
-        imported = parsed.map((item) => {
-          if (typeof item === 'string') {
-            const label = sanitizeString(item);
-            return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
-          }
-          if (item && typeof item === 'object' && 'label' in item) {
-            const obj = item as Record<string, unknown>;
-            const label = sanitizeString(obj.label);
-            const value = obj.value ? sanitizeString(obj.value) : label.toLowerCase().replace(/\s+/g, '_');
-            return { label, value };
-          }
-          const label = sanitizeString(item);
-          return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
-        }).filter((o) => o.label.length > 0);
-      } else if (parsed && typeof parsed === 'object') {
-        imported = Object.entries(parsed as Record<string, unknown>)
-          .map(([key, val]) => ({
-            value: sanitizeString(key),
-            label: sanitizeString(val),
-          }))
-          .filter((o) => o.label.length > 0);
-      } else {
-        setJsonError('JSON must be an array or object');
-        return;
-      }
+      const imported = parseJsonOptions(jsonText);
 
       if (imported.length === 0) {
         setJsonError('No valid options found in JSON');
@@ -289,7 +255,7 @@ export default function OptionListsPage() {
                   />
                   {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
                   <p className="text-[10px] text-gray-400">
-                    Accepts: array of strings, array of {'{'}&#34;label&#34;, &#34;value&#34;{'}'} objects, or key→value object.
+                    Accepts: array of strings, array of {'{label, value}'} objects, or key→value object.
                   </p>
                   <Button size="sm" variant="outline" onClick={handleImportJson} className="w-full">
                     Import Options
