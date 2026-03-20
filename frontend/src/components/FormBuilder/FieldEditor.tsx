@@ -15,7 +15,53 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, FileJson } from 'lucide-react';
+
+/** Sanitise a single string value: strip HTML tags and trim whitespace. */
+function sanitizeString(value: unknown): string {
+  if (typeof value !== 'string') return String(value ?? '');
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
+/**
+ * Parse a JSON string into an array of {label, value} options.
+ * Accepts:
+ *   - An array of strings, e.g. ["Red","Green","Blue"]
+ *   - An array of {label, value} objects, e.g. [{"label":"Red","value":"red"}]
+ *   - An object of key→label pairs, e.g. {"us":"United States","uk":"United Kingdom"}
+ * Sanitises all values to prevent injection.
+ */
+function parseJsonOptions(raw: string): { label: string; value: string }[] {
+  const parsed: unknown = JSON.parse(raw);
+
+  if (Array.isArray(parsed)) {
+    return parsed.map((item) => {
+      if (typeof item === 'string') {
+        const label = sanitizeString(item);
+        return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+      }
+      if (item && typeof item === 'object' && 'label' in item) {
+        const obj = item as Record<string, unknown>;
+        const label = sanitizeString(obj.label);
+        const value = obj.value ? sanitizeString(obj.value) : label.toLowerCase().replace(/\s+/g, '_');
+        return { label, value };
+      }
+      const label = sanitizeString(item);
+      return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+    }).filter((o) => o.label.length > 0);
+  }
+
+  if (parsed && typeof parsed === 'object') {
+    return Object.entries(parsed as Record<string, unknown>)
+      .map(([key, val]) => ({
+        value: sanitizeString(key),
+        label: sanitizeString(val),
+      }))
+      .filter((o) => o.label.length > 0);
+  }
+
+  throw new Error('JSON must be an array or object');
+}
 
 interface FieldEditorProps {
   field: FormField;
@@ -27,6 +73,9 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   const [newOption, setNewOption] = useState('');
   const { currentOrg } = useStore();
   const [availableLists, setAvailableLists] = useState<OptionList[]>([]);
+  const [showJsonPaste, setShowJsonPaste] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentOrg?.id) return;
@@ -48,6 +97,22 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
     const opts = [...(field.options ?? [])];
     opts[index] = { ...opts[index], [key]: val };
     onChange({ options: opts });
+  }
+
+  function handleImportJson() {
+    try {
+      const options = parseJsonOptions(jsonText);
+      if (options.length === 0) {
+        setJsonError('No valid options found in JSON');
+        return;
+      }
+      onChange({ options: [...(field.options ?? []), ...options] });
+      setJsonText('');
+      setJsonError(null);
+      setShowJsonPaste(false);
+    } catch {
+      setJsonError('Invalid JSON. Expected an array of strings, array of {label, value} objects, or a key→value object.');
+    }
   }
 
   const hasOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type);
@@ -76,6 +141,21 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
             placeholder="Field label"
           />
         </div>
+
+        {/* Field Name */}
+        {!isLayout && (
+          <div className="space-y-1.5">
+            <Label>Field Name</Label>
+            <Input
+              value={field.name ?? ''}
+              onChange={(e) => onChange({ name: e.target.value || undefined })}
+              placeholder={field.id}
+            />
+            <p className="text-[10px] text-gray-400">
+              Identifier used in API responses &amp; exports. Leave blank to use auto-generated ID.
+            </p>
+          </div>
+        )}
 
         {/* Content (heading/paragraph) */}
         {hasContent && (
@@ -211,36 +291,69 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                 </p>
               ) : (
                 <>
-                  <Label>Options</Label>
-                  {field.options?.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={opt.label}
-                        onChange={(e) => updateOption(i, 'label', e.target.value)}
-                        placeholder="Label"
-                        className="flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeOption(i)}
-                        className="text-gray-400 hover:text-red-500 flex-shrink-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <Input
-                      value={newOption}
-                      onChange={(e) => setNewOption(e.target.value)}
-                      placeholder="New option"
-                      onKeyDown={(e) => e.key === 'Enter' && addOption()}
-                      className="flex-1"
-                    />
-                    <Button size="sm" variant="outline" onClick={addOption}>
-                      <Plus className="h-4 w-4" />
+                  <div className="flex items-center justify-between">
+                    <Label>Options</Label>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs gap-1"
+                      onClick={() => { setShowJsonPaste(!showJsonPaste); setJsonError(null); }}
+                    >
+                      <FileJson className="h-3.5 w-3.5" />
+                      {showJsonPaste ? 'Manual' : 'Paste JSON'}
                     </Button>
                   </div>
+
+                  {showJsonPaste ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={jsonText}
+                        onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }}
+                        placeholder={'[\n  "Option A",\n  "Option B"\n]'}
+                        rows={5}
+                        className="text-xs font-mono"
+                      />
+                      {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
+                      <p className="text-[10px] text-gray-400">
+                        Accepts: array of strings, array of {'{'}&quot;label&quot;, &quot;value&quot;{'}'} objects, or key→value object.
+                      </p>
+                      <Button size="sm" variant="outline" onClick={handleImportJson} className="w-full">
+                        Import Options
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      {field.options?.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            value={opt.label}
+                            onChange={(e) => updateOption(i, 'label', e.target.value)}
+                            placeholder="Label"
+                            className="flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeOption(i)}
+                            className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <Input
+                          value={newOption}
+                          onChange={(e) => setNewOption(e.target.value)}
+                          placeholder="New option"
+                          onKeyDown={(e) => e.key === 'Enter' && addOption()}
+                          className="flex-1"
+                        />
+                        <Button size="sm" variant="outline" onClick={addOption}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, ListOrdered } from 'lucide-react';
+import { Plus, Trash2, Pencil, ListOrdered, FileJson } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { optionLists as optionListsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
@@ -42,6 +42,9 @@ export default function OptionListsPage() {
   const [description, setDescription] = useState('');
   const [options, setOptions] = useState<{ label: string; value: string }[]>([]);
   const [newOptionLabel, setNewOptionLabel] = useState('');
+  const [showJsonPaste, setShowJsonPaste] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentOrg?.id) return;
@@ -57,6 +60,9 @@ export default function OptionListsPage() {
     setDescription('');
     setOptions([]);
     setNewOptionLabel('');
+    setShowJsonPaste(false);
+    setJsonText('');
+    setJsonError(null);
     setIsOpen(true);
   }
 
@@ -66,6 +72,9 @@ export default function OptionListsPage() {
     setDescription(list.description ?? '');
     setOptions([...list.options]);
     setNewOptionLabel('');
+    setShowJsonPaste(false);
+    setJsonText('');
+    setJsonError(null);
     setIsOpen(true);
   }
 
@@ -83,6 +92,58 @@ export default function OptionListsPage() {
 
   function updateOptionLabel(index: number, label: string) {
     setOptions((prev) => prev.map((opt, i) => i === index ? { ...opt, label } : opt));
+  }
+
+  /** Sanitise a single string value: strip HTML tags and trim whitespace. */
+  function sanitizeString(value: unknown): string {
+    if (typeof value !== 'string') return String(value ?? '');
+    return value.replace(/<[^>]*>/g, '').trim();
+  }
+
+  function handleImportJson() {
+    try {
+      const parsed: unknown = JSON.parse(jsonText);
+      let imported: { label: string; value: string }[] = [];
+
+      if (Array.isArray(parsed)) {
+        imported = parsed.map((item) => {
+          if (typeof item === 'string') {
+            const label = sanitizeString(item);
+            return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+          }
+          if (item && typeof item === 'object' && 'label' in item) {
+            const obj = item as Record<string, unknown>;
+            const label = sanitizeString(obj.label);
+            const value = obj.value ? sanitizeString(obj.value) : label.toLowerCase().replace(/\s+/g, '_');
+            return { label, value };
+          }
+          const label = sanitizeString(item);
+          return { label, value: label.toLowerCase().replace(/\s+/g, '_') };
+        }).filter((o) => o.label.length > 0);
+      } else if (parsed && typeof parsed === 'object') {
+        imported = Object.entries(parsed as Record<string, unknown>)
+          .map(([key, val]) => ({
+            value: sanitizeString(key),
+            label: sanitizeString(val),
+          }))
+          .filter((o) => o.label.length > 0);
+      } else {
+        setJsonError('JSON must be an array or object');
+        return;
+      }
+
+      if (imported.length === 0) {
+        setJsonError('No valid options found in JSON');
+        return;
+      }
+
+      setOptions((prev) => [...prev, ...imported]);
+      setJsonText('');
+      setJsonError(null);
+      setShowJsonPaste(false);
+    } catch {
+      setJsonError('Invalid JSON. Expected an array of strings, array of {label, value} objects, or a key→value object.');
+    }
   }
 
   async function handleSave() {
@@ -205,42 +266,72 @@ export default function OptionListsPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Options</Label>
-                <span className="text-xs text-gray-400">{options.length} options</span>
-              </div>
-
-              {options.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4 border-2 border-dashed rounded-lg">
-                  Add options below
-                </p>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={opt.label}
-                        onChange={(e) => updateOptionLabel(i, e.target.value)}
-                        className="flex-1 h-7 text-sm"
-                      />
-                      <button onClick={() => removeOption(i)} className="text-gray-400 hover:text-red-500 shrink-0">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setShowJsonPaste(!showJsonPaste); setJsonError(null); }}
+                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    <FileJson className="h-3.5 w-3.5" />
+                    {showJsonPaste ? 'Manual' : 'Paste JSON'}
+                  </button>
+                  <span className="text-xs text-gray-400">{options.length} options</span>
                 </div>
-              )}
-
-              <div className="flex gap-2">
-                <Input
-                  value={newOptionLabel}
-                  onChange={(e) => setNewOptionLabel(e.target.value)}
-                  placeholder="New option"
-                  onKeyDown={(e) => e.key === 'Enter' && addOption()}
-                  className="flex-1"
-                />
-                <Button size="sm" variant="outline" onClick={addOption}>
-                  <Plus className="h-4 w-4" />
-                </Button>
               </div>
+
+              {showJsonPaste ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={jsonText}
+                    onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }}
+                    placeholder={'[\n  "Option A",\n  "Option B"\n]'}
+                    rows={6}
+                    className="text-xs font-mono"
+                  />
+                  {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
+                  <p className="text-[10px] text-gray-400">
+                    Accepts: array of strings, array of {'{'}&#34;label&#34;, &#34;value&#34;{'}'} objects, or key→value object.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={handleImportJson} className="w-full">
+                    Import Options
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {options.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4 border-2 border-dashed rounded-lg">
+                      Add options below
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {options.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            value={opt.label}
+                            onChange={(e) => updateOptionLabel(i, e.target.value)}
+                            className="flex-1 h-7 text-sm"
+                          />
+                          <button onClick={() => removeOption(i)} className="text-gray-400 hover:text-red-500 shrink-0">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Input
+                      value={newOptionLabel}
+                      onChange={(e) => setNewOptionLabel(e.target.value)}
+                      placeholder="New option"
+                      onKeyDown={(e) => e.key === 'Enter' && addOption()}
+                      className="flex-1"
+                    />
+                    <Button size="sm" variant="outline" onClick={addOption}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>

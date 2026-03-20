@@ -13,7 +13,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2, FileText } from 'lucide-react';
-import type { Form, FormField, FieldType, FormSettings, BrandingConfig } from '@/lib/types';
+import type { Form, FormField, FieldType, FieldGroup, FormSettings, BrandingConfig } from '@/lib/types';
 import { forms as formsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { cn, generateSlug as _generateSlug } from '@/lib/utils';
@@ -184,6 +184,23 @@ export function FormBuilder({ formId }: FormBuilderProps) {
       return updated;
     });
     setSelectedFieldId(newField.id);
+  }
+
+  function addFieldGroup(group: FieldGroup) {
+    const newFields = group.fields.map((f) => ({
+      ...f,
+      id: generateId(),
+    }));
+    setForm((prev) => {
+      const fields = [...(prev.fields ?? []), ...newFields];
+      const updated = { ...prev, fields };
+      scheduleAutoSave(updated);
+      return updated;
+    });
+    if (newFields.length > 0) {
+      setSelectedFieldId(newFields[0].id);
+    }
+    toast.success(`Added ${newFields.length} field${newFields.length !== 1 ? 's' : ''} from "${group.name}"`);
   }
 
   function deleteField(id: string) {
@@ -392,7 +409,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
               </TabsList>
 
               <TabsContent value="fields" className="flex-1 overflow-hidden mt-0">
-                <FieldPalette onAddField={addField} />
+                <FieldPalette onAddField={addField} onAddFieldGroup={addFieldGroup} />
               </TabsContent>
 
               <TabsContent value="settings" className="flex-1 overflow-auto mt-0">
