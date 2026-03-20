@@ -198,7 +198,8 @@ function shouldShowField(
   }
 
   // Then apply the field's own conditional logic (if any).
-  // For the group start field, skip — its conditional already controls the group above.
+  // For the group start field, skip — its conditional is already evaluated at
+  // the group level above and would otherwise be applied twice.
   if (field.conditionalLogic && !field.conditionalGroup?.isGroupStart) {
     if (!evaluateConditional(field.conditionalLogic, formValues)) return false;
   }
