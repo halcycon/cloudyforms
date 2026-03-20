@@ -50,6 +50,8 @@ export interface FormField {
   id: string;
   type: FieldType;
   label: string;
+  /** Optional user-defined field name for API/export purposes. Defaults to auto-generated id. */
+  name?: string;
   placeholder?: string;
   description?: string;
   required: boolean;
