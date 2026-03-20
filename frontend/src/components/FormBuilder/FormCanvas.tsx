@@ -52,6 +52,8 @@ interface SortableFieldProps {
   onDuplicate: () => void;
   onWidthChange?: (width: number) => void;
   showResize?: boolean;
+  /** Number of fields in this row, used for gap-aware width calculation */
+  rowLength: number;
 }
 
 function SortableField({
@@ -62,6 +64,7 @@ function SortableField({
   onDuplicate,
   onWidthChange,
   showResize,
+  rowLength,
 }: SortableFieldProps) {
   const {
     attributes,
@@ -125,11 +128,16 @@ function SortableField({
   );
 
   const width = field.width ?? 100;
+  // Account for flex gap (gap-2 = 0.5rem) to prevent overflow
+  const gapRem = (rowLength - 1) * 0.5;
+  const widthStyle = gapRem > 0
+    ? `calc(${width}% - ${(width / 100) * gapRem}rem)`
+    : `${width}%`;
 
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, width: `${width}%` }}
+      style={{ ...style, width: widthStyle }}
       data-field-wrapper=""
       onClick={onSelect}
       className={cn(
@@ -262,6 +270,7 @@ export function FormCanvas({
                         : undefined
                     }
                     showResize={(field.width ?? 100) < 100 || row.length > 1}
+                    rowLength={row.length}
                   />
                 ))}
               </div>

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, FileJson, Star, EyeOff } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star, EyeOff, Lock } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
@@ -227,6 +227,38 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
           </div>
         )}
 
+        {/* Read-only toggle */}
+        {!isLayout && !isHidden && (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-gray-500" />
+                <Label>Read only</Label>
+              </div>
+              <p className="text-[10px] text-gray-400">Display value but prevent editing</p>
+            </div>
+            <Switch
+              checked={field.readOnly ?? false}
+              onCheckedChange={(v) => onChange({ readOnly: v })}
+            />
+          </div>
+        )}
+
+        {/* Default value for read-only fields */}
+        {field.readOnly && !isHidden && !hasOptions && !['rating', 'scale', 'file', 'signature'].includes(field.type) && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-gray-500">Default Value</Label>
+            <Input
+              value={field.defaultValue ?? ''}
+              onChange={(e) => onChange({ defaultValue: e.target.value })}
+              placeholder="Value shown to user"
+            />
+            <p className="text-[10px] text-gray-400">
+              The pre-filled value displayed in read-only mode.
+            </p>
+          </div>
+        )}
+
         {/* Hidden field settings */}
         {isHidden && (
           <>
@@ -281,22 +313,56 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
         {/* Field Width */}
         <div className="space-y-1.5">
           <Label>Width</Label>
-          <Select
-            value={String(field.width ?? 100)}
-            onValueChange={(v) => onChange({ width: Number(v) })}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="100">Full width (100%)</SelectItem>
-              <SelectItem value="75">Three quarters (75%)</SelectItem>
-              <SelectItem value="66">Two thirds (66%)</SelectItem>
-              <SelectItem value="50">Half (50%)</SelectItem>
-              <SelectItem value="33">One third (33%)</SelectItem>
-              <SelectItem value="25">Quarter (25%)</SelectItem>
-            </SelectContent>
-          </Select>
+          {(() => {
+            const presets = [100, 75, 66, 50, 33, 25];
+            const currentWidth = field.width ?? 100;
+            const isPreset = presets.includes(currentWidth);
+            const selectValue = isPreset ? String(currentWidth) : 'custom';
+            return (
+              <>
+                <Select
+                  value={selectValue}
+                  onValueChange={(v) => {
+                    if (v === 'custom') {
+                      // Keep current width but switch to custom mode
+                      if (isPreset) onChange({ width: currentWidth });
+                    } else {
+                      onChange({ width: Number(v) });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">Full width (100%)</SelectItem>
+                    <SelectItem value="75">Three quarters (75%)</SelectItem>
+                    <SelectItem value="66">Two thirds (66%)</SelectItem>
+                    <SelectItem value="50">Half (50%)</SelectItem>
+                    <SelectItem value="33">One third (33%)</SelectItem>
+                    <SelectItem value="25">Quarter (25%)</SelectItem>
+                    <SelectItem value="custom">Custom{!isPreset ? ` (${currentWidth}%)` : ''}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!isPreset && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={10}
+                      max={100}
+                      value={currentWidth}
+                      onChange={(e) => {
+                        const v = Math.max(10, Math.min(100, Number(e.target.value) || 10));
+                        onChange({ width: v });
+                      }}
+                      className="h-7 text-xs flex-1"
+                    />
+                    <span className="text-xs text-gray-400">%</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <p className="text-[10px] text-gray-400">
             Set to less than 100% to place fields side-by-side
           </p>

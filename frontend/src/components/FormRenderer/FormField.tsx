@@ -14,9 +14,11 @@ interface FormFieldProps {
   value: unknown;
   onChange: (value: unknown) => void;
   error?: string;
+  /** When true, reserve vertical space for the description area even if no description exists */
+  reserveDescriptionSpace?: boolean;
 }
 
-export function FormFieldRenderer({ field, value, onChange, error }: FormFieldProps) {
+export function FormFieldRenderer({ field, value, onChange, error, reserveDescriptionSpace }: FormFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,6 +78,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
   );
   const descEl = field.description ? (
     <p className="mt-0.5 mb-1.5 text-xs text-gray-500">{field.description}</p>
+  ) : reserveDescriptionSpace ? (
+    <p className="mt-0.5 mb-1.5 text-xs text-transparent" aria-hidden="true">&nbsp;</p>
   ) : null;
 
   if (field.type === 'heading') {
@@ -110,6 +114,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
     );
   }
 
+  const isReadOnly = field.readOnly ?? false;
+
   return (
     <div className="space-y-1">
       {labelEl}
@@ -125,6 +131,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
           minLength={field.validation?.minLength}
           maxLength={field.validation?.maxLength}
           pattern={field.validation?.pattern}
+          readOnly={isReadOnly}
+          className={isReadOnly ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : undefined}
         />
       )}
 
@@ -137,6 +145,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
           error={error}
           min={field.validation?.min}
           max={field.validation?.max}
+          readOnly={isReadOnly}
+          className={isReadOnly ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : undefined}
         />
       )}
 
@@ -146,6 +156,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
           value={(value as string) ?? ''}
           onChange={(e) => onChange(e.target.value)}
           error={error}
+          readOnly={isReadOnly}
+          className={isReadOnly ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : undefined}
         />
       )}
 
@@ -158,6 +170,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
           rows={4}
           minLength={field.validation?.minLength}
           maxLength={field.validation?.maxLength}
+          readOnly={isReadOnly}
+          className={isReadOnly ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : undefined}
         />
       )}
 
@@ -169,9 +183,11 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
               'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm',
               'focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent',
               error && 'border-red-500',
+              isReadOnly && 'bg-gray-50 text-gray-600 cursor-not-allowed',
             )}
             value={(value as string) ?? (defaultOpt?.value ?? '')}
             onChange={(e) => onChange(e.target.value)}
+            disabled={isReadOnly}
           >
             {defaultOpt ? (
               <>
@@ -189,7 +205,7 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
       })()}
 
       {field.type === 'multiselect' && (
-        <div className="space-y-2">
+        <div className={cn('space-y-2', isReadOnly && 'pointer-events-none opacity-75')}>
           {field.options?.map((opt) => {
             const selected = (value as string[] | undefined) ?? [];
             const checked = selected.includes(opt.value);
@@ -197,6 +213,7 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
               <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
                   checked={checked}
+                  disabled={isReadOnly}
                   onCheckedChange={(c) => {
                     if (c) onChange([...selected, opt.value]);
                     else onChange(selected.filter((v) => v !== opt.value));
@@ -213,6 +230,8 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
         <RadioGroup
           value={(value as string) ?? ''}
           onValueChange={(v) => onChange(v)}
+          disabled={isReadOnly}
+          className={isReadOnly ? 'pointer-events-none opacity-75' : undefined}
         >
           {field.options?.map((opt) => (
             <div key={opt.value} className="flex items-center gap-2">
@@ -230,19 +249,21 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
           <Checkbox
             checked={Boolean(value)}
             onCheckedChange={(c) => onChange(Boolean(c))}
+            disabled={isReadOnly}
           />
           <span className="text-sm text-gray-700">{field.placeholder ?? field.label}</span>
         </label>
       )}
 
       {field.type === 'rating' && (
-        <div className="star-rating flex gap-1">
+        <div className={cn('star-rating flex gap-1', isReadOnly && 'pointer-events-none')}>
           {Array.from({ length: field.max ?? 5 }, (_, i) => i + 1).map((star) => (
             <button
               key={star}
               type="button"
               className="star focus:outline-none"
               onClick={() => onChange(star)}
+              disabled={isReadOnly}
             >
               <Star
                 className={cn(
@@ -265,6 +286,7 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
             step={field.step ?? 1}
             value={[((value as number) ?? field.min ?? 1)]}
             onValueChange={([v]) => onChange(v)}
+            disabled={isReadOnly}
           />
           <div className="flex justify-between text-xs text-gray-500">
             <span>{field.min ?? 1}</span>
@@ -277,14 +299,18 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
       {field.type === 'file' && (
         <div
           className={cn(
-            'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
-            dragOver ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-gray-400',
+            'border-2 border-dashed rounded-lg p-6 text-center transition-colors',
+            isReadOnly
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+              : 'cursor-pointer',
+            !isReadOnly && (dragOver ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-gray-400'),
             error && 'border-red-400',
           )}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onClick={() => !isReadOnly && fileInputRef.current?.click()}
+          onDragOver={(e) => { if (!isReadOnly) { e.preventDefault(); setDragOver(true); } }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
+            if (isReadOnly) return;
             e.preventDefault();
             setDragOver(false);
             const files = Array.from(e.dataTransfer.files);
@@ -323,7 +349,7 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
 
       {field.type === 'signature' && (
         <div className="space-y-2">
-          <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+          <div className={cn('border border-gray-300 rounded-md overflow-hidden bg-white', isReadOnly && 'pointer-events-none opacity-75')}>
             <canvas
               ref={canvasRef}
               width={600}
