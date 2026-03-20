@@ -85,6 +85,8 @@ export interface FormField {
     logicType: 'all' | 'any';
   };
   optionListId?: string;
+  /** Width of the field as a percentage (25, 33, 50, 66, 75, 100). Defaults to 100. */
+  width?: number;
   /** Configuration for repeatable field groups */
   repeatableGroup?: {
     /** Whether this field is the first (anchor) field in a repeatable group */

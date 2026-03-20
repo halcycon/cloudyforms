@@ -145,6 +145,30 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
           </div>
         )}
 
+        {/* Field Width */}
+        <div className="space-y-1.5">
+          <Label>Width</Label>
+          <Select
+            value={String(field.width ?? 100)}
+            onValueChange={(v) => onChange({ width: Number(v) })}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="100">Full width (100%)</SelectItem>
+              <SelectItem value="75">Three quarters (75%)</SelectItem>
+              <SelectItem value="66">Two thirds (66%)</SelectItem>
+              <SelectItem value="50">Half (50%)</SelectItem>
+              <SelectItem value="33">One third (33%)</SelectItem>
+              <SelectItem value="25">Quarter (25%)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-gray-400">
+            Set to less than 100% to place fields side-by-side
+          </p>
+        </div>
+
         {/* Options */}
         {hasOptions && (
           <>
