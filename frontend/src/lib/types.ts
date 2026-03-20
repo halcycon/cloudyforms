@@ -98,6 +98,8 @@ export interface FormField {
   visibleToUser?: boolean;
   /** When true, the field is rendered but cannot be edited by the user */
   readOnly?: boolean;
+  /** When true, the field is only visible to authenticated users (office/internal use) */
+  officeUse?: boolean;
   /** Configuration for conditional field groups (show/hide a set of fields together) */
   conditionalGroup?: {
     /** Unique group identifier shared by all fields in the group */
@@ -174,6 +176,14 @@ export interface FormResponse {
   };
   submitterEmail?: string;
   isSpam: boolean;
+  /** Workflow status: draft (pre-fill), submitted (awaiting office completion), completed */
+  status?: 'draft' | 'submitted' | 'completed';
+  /** Unique token for draft/pre-fill access */
+  draftToken?: string;
+  /** User ID who last updated this response */
+  updatedBy?: string;
+  /** Timestamp of last update */
+  updatedAt?: string;
   createdAt: string;
 }
 

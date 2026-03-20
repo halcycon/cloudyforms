@@ -63,6 +63,10 @@ CREATE TABLE IF NOT EXISTS form_responses (
   submitter_email TEXT,
   fingerprint TEXT,
   is_spam INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'submitted', -- draft, submitted, completed
+  draft_token TEXT UNIQUE,
+  updated_by TEXT REFERENCES users(id),
+  updated_at TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -177,3 +181,4 @@ CREATE INDEX IF NOT EXISTS idx_response_files_response_id ON response_files(resp
 CREATE INDEX IF NOT EXISTS idx_custom_domains_domain ON custom_domains(domain);
 CREATE INDEX IF NOT EXISTS idx_custom_domains_org ON custom_domains(org_id);
 CREATE INDEX IF NOT EXISTS idx_option_lists_org_id ON option_lists(org_id);
+CREATE INDEX IF NOT EXISTS idx_responses_draft_token ON form_responses(draft_token);

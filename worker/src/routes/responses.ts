@@ -9,6 +9,7 @@ import { generateFingerprint } from "../lib/fingerprint";
 import { sendEmail, buildFormReceiptEmail, buildNotificationEmail } from "../lib/email";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
+import { resolveOptionListReferences, serializeForm, type FormRow } from "./forms";
 
 const responses = new Hono<{ Bindings: Bindings }>();
 
@@ -32,6 +33,10 @@ interface ResponseRow {
   submitter_email: string | null;
   fingerprint: string | null;
   is_spam: number;
+  status: string;
+  draft_token: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
   created_at: string;
 }
 
@@ -44,6 +49,10 @@ function serializeResponse(row: ResponseRow) {
     submitterEmail: row.submitter_email,
     fingerprint: row.fingerprint,
     isSpam: row.is_spam === 1,
+    status: row.status ?? "submitted",
+    draftToken: row.draft_token,
+    updatedBy: row.updated_by,
+    updatedAt: row.updated_at,
     createdAt: row.created_at,
   };
 }
@@ -197,8 +206,8 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO form_responses (id, form_id, data, metadata, submitter_email, fingerprint, is_spam, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+    `INSERT INTO form_responses (id, form_id, data, metadata, submitter_email, fingerprint, is_spam, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 'submitted', ?)`,
     [id, form.id, JSON.stringify(data), JSON.stringify(metadata), submitterEmail, fingerprint, now]
   );
 
@@ -369,14 +378,15 @@ responses.get("/:responseId", authMiddleware, async (c) => {
   return c.json(serializeResponse(row));
 });
 
-// Update response (admin)
-responses.put("/:responseId", authMiddleware, async (c) => {
+// Update response (admin/owner can edit all; editor can edit office-use fields)
+// Registered on both PUT and PATCH so the frontend patch() helper works.
+const updateResponseHandler = async (c: Parameters<Parameters<typeof responses.put>[1]>[0]) => {
   const user = c.get("user");
   const { responseId } = c.req.param();
 
-  const row = await dbQueryFirst<ResponseRow & { org_id: string }>(
+  const row = await dbQueryFirst<ResponseRow & { org_id: string; fields: string }>(
     c.env.DB,
-    `SELECT r.*, f.org_id FROM form_responses r JOIN forms f ON f.id = r.form_id WHERE r.id = ?`,
+    `SELECT r.*, f.org_id, f.fields FROM form_responses r JOIN forms f ON f.id = r.form_id WHERE r.id = ?`,
     [responseId]
   );
 
@@ -386,7 +396,7 @@ responses.put("/:responseId", authMiddleware, async (c) => {
     ? "owner"
     : await getUserOrgRole(c.env.DB, user.userId, row.org_id);
 
-  if (!role || role === "viewer" || role === "editor") {
+  if (!role || role === "viewer") {
     return c.json({ error: "Access denied" }, 403);
   }
 
@@ -394,7 +404,23 @@ responses.put("/:responseId", authMiddleware, async (c) => {
     data?: Record<string, unknown>;
     isSpam?: boolean;
     submitterEmail?: string;
+    status?: string;
   }>();
+
+  // If editor (not admin/owner), restrict to office-use fields only
+  if (role === "editor" && body.data) {
+    const formFields = JSON.parse(row.fields) as { id: string; officeUse?: boolean }[];
+    const officeFieldIds = new Set(formFields.filter((f) => f.officeUse).map((f) => f.id));
+    const existingData = JSON.parse(row.data) as Record<string, unknown>;
+    // Merge: only allow changes to office-use fields
+    const mergedData = { ...existingData };
+    for (const [key, value] of Object.entries(body.data)) {
+      if (officeFieldIds.has(key) || officeFieldIds.has(key.replace(/_row_\d+$/, ""))) {
+        mergedData[key] = value;
+      }
+    }
+    body.data = mergedData;
+  }
 
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -402,6 +428,11 @@ responses.put("/:responseId", authMiddleware, async (c) => {
   if (body.data !== undefined) { sets.push("data = ?"); params.push(JSON.stringify(body.data)); }
   if (body.isSpam !== undefined) { sets.push("is_spam = ?"); params.push(body.isSpam ? 1 : 0); }
   if (body.submitterEmail !== undefined) { sets.push("submitter_email = ?"); params.push(body.submitterEmail); }
+  if (body.status !== undefined) { sets.push("status = ?"); params.push(body.status); }
+
+  // Always track who updated and when
+  sets.push("updated_by = ?"); params.push(user.userId);
+  sets.push("updated_at = ?"); params.push(new Date().toISOString());
 
   if (sets.length === 0) {
     return c.json({ error: "No updates provided" }, 400);
@@ -417,6 +448,157 @@ responses.put("/:responseId", authMiddleware, async (c) => {
   );
 
   return c.json(serializeResponse(updated!));
+};
+
+responses.put("/:responseId", authMiddleware, updateResponseHandler);
+responses.patch("/:responseId", authMiddleware, updateResponseHandler);
+
+// ── Pre-fill / Draft endpoints ─────────────────────────────────────────────────
+
+// Create a pre-fill draft (auth required, editor+)
+responses.post("/form/:formId/prefill", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const { formId } = c.req.param();
+
+  const form = await dbQueryFirst<{ org_id: string; status: string }>(
+    c.env.DB,
+    "SELECT org_id, status FROM forms WHERE id = ?",
+    [formId]
+  );
+
+  if (!form) return c.json({ error: "Form not found" }, 404);
+
+  const role = user.isSuperAdmin
+    ? "owner"
+    : await getUserOrgRole(c.env.DB, user.userId, form.org_id);
+
+  if (!role || role === "viewer") {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  const body = await c.req.json<{ data: Record<string, unknown> }>();
+  const id = generateId();
+  const draftToken = generateId();
+  const now = new Date().toISOString();
+  const metadata = { submittedAt: "", ip: "", fingerprint: "", userAgent: "" };
+
+  await dbRun(
+    c.env.DB,
+    `INSERT INTO form_responses (id, form_id, data, metadata, status, draft_token, updated_by, created_at)
+     VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)`,
+    [id, formId, JSON.stringify(body.data ?? {}), JSON.stringify(metadata), draftToken, user.userId, now]
+  );
+
+  console.log(`[RESPONSES] Pre-fill draft created id=${id} formId=${formId} token=${draftToken}`);
+
+  return c.json({ id, draftToken, url: `/fill/${draftToken}` }, 201);
+});
+
+// Get draft form data by token (public, no auth required)
+responses.get("/draft/:token", async (c) => {
+  const { token } = c.req.param();
+
+  const row = await dbQueryFirst<ResponseRow & { form_id: string }>(
+    c.env.DB,
+    `SELECT * FROM form_responses WHERE draft_token = ? AND status = 'draft'`,
+    [token]
+  );
+
+  if (!row) return c.json({ error: "Draft not found or already submitted" }, 404);
+
+  // Get form definition
+  const formRow = await dbQueryFirst<FormRow>(
+    c.env.DB,
+    "SELECT * FROM forms WHERE id = ?",
+    [row.form_id]
+  );
+
+  if (!formRow) return c.json({ error: "Form not found" }, 404);
+
+  const formData = serializeForm(formRow);
+
+  // Resolve option list references
+  await resolveOptionListReferences(c.env.DB, formData.fields);
+
+  // Remove access code from public response
+  delete formData.accessCode;
+
+  return c.json({
+    form: formData,
+    data: JSON.parse(row.data),
+    responseId: row.id,
+  });
+});
+
+// Submit a draft (public, token-based)
+const draftSubmitSchema = z.object({
+  data: z.record(z.unknown()),
+  turnstileToken: z.string().optional(),
+});
+
+responses.post("/draft/:token/submit", zValidator("json", draftSubmitSchema), async (c) => {
+  const { token } = c.req.param();
+  const { data, turnstileToken } = c.req.valid("json");
+
+  const row = await dbQueryFirst<ResponseRow>(
+    c.env.DB,
+    `SELECT * FROM form_responses WHERE draft_token = ? AND status = 'draft'`,
+    [token]
+  );
+
+  if (!row) return c.json({ error: "Draft not found or already submitted" }, 404);
+
+  // Get form to check Turnstile setting
+  const form = await dbQueryFirst<{ settings: string; slug: string; id: string }>(
+    c.env.DB,
+    "SELECT id, slug, settings FROM forms WHERE id = ?",
+    [row.form_id]
+  );
+
+  if (!form) return c.json({ error: "Form not found" }, 404);
+
+  const settings: FormSettings = JSON.parse(form.settings);
+
+  // Turnstile verification if enabled
+  if (settings.enableTurnstile) {
+    if (!turnstileToken) {
+      return c.json({ error: "Turnstile token required" }, 400);
+    }
+    const ip = c.req.header("CF-Connecting-IP");
+    const valid = await verifyTurnstile(turnstileToken, c.env.TURNSTILE_SECRET_KEY, ip);
+    if (!valid) {
+      return c.json({ error: "Turnstile verification failed" }, 400);
+    }
+  }
+
+  const now = new Date().toISOString();
+  const fingerprint = await generateFingerprint(c.req.raw);
+  const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+  const userAgent = c.req.header("User-Agent") ?? "";
+  const metadata = { submittedAt: now, ip, fingerprint, userAgent };
+
+  // Merge pre-filled data with submitted data
+  const existingData = JSON.parse(row.data) as Record<string, unknown>;
+  const mergedData = { ...existingData, ...data };
+
+  // Extract submitter email if configured
+  let submitterEmail: string | null = null;
+  if (settings.receiptEmailField && mergedData[settings.receiptEmailField]) {
+    submitterEmail = String(mergedData[settings.receiptEmailField]);
+  }
+
+  await dbRun(
+    c.env.DB,
+    `UPDATE form_responses SET data = ?, metadata = ?, status = 'submitted', submitter_email = ?, fingerprint = ?, updated_at = ? WHERE id = ?`,
+    [JSON.stringify(mergedData), JSON.stringify(metadata), submitterEmail, fingerprint, now, row.id]
+  );
+
+  console.log(`[RESPONSES] Draft submitted id=${row.id} token=${token}`);
+
+  const message = settings.successMessage || "Thank you for your submission!";
+  const redirectUrl = settings.redirectUrl;
+
+  return c.json({ id: row.id, message, ...(redirectUrl ? { redirectUrl } : {}) }, 200);
 });
 
 // Delete response

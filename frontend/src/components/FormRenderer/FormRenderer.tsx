@@ -8,9 +8,23 @@ import { FormFieldRenderer } from './FormField';
 import { TurnstileWidget } from './TurnstileWidget';
 import { Plus, Minus } from 'lucide-react';
 
+export type FormRendererMode = 'public' | 'edit' | 'prefill';
+
 interface FormRendererProps {
   form: Form;
-  onSubmitSuccess?: () => void;
+  onSubmitSuccess?: (responseId?: string) => void;
+  /** Rendering mode: public (default), edit (office-use completion), prefill (editor pre-fills) */
+  mode?: FormRendererMode;
+  /** Pre-populated field values for edit/prefill modes */
+  initialValues?: Record<string, unknown>;
+  /** Response ID when editing an existing response */
+  responseId?: string;
+  /** Whether the current user can edit all fields (not just office-use). Governed by ACL. */
+  canEditAllFields?: boolean;
+  /** Custom submit button text override */
+  submitLabel?: string;
+  /** Draft token for pre-fill submission */
+  draftToken?: string;
 }
 
 /** Collect all distinct repeatable group definitions from the form fields. */
@@ -224,7 +238,16 @@ function evaluateFormula(
   });
 }
 
-export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
+export function FormRenderer({
+  form,
+  onSubmitSuccess,
+  mode = 'public',
+  initialValues,
+  responseId,
+  canEditAllFields = false,
+  submitLabel,
+  draftToken,
+}: FormRendererProps) {
   const [submitted, setSubmitted] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -265,10 +288,14 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
         defaults[f.id] = f.defaultValue;
       }
     }
+    // In edit/prefill modes, merge in the initial values (overriding defaults)
+    if (initialValues) {
+      Object.assign(defaults, initialValues);
+    }
     if (Object.keys(defaults).length > 0) {
       setFieldValues((prev) => ({ ...defaults, ...prev }));
     }
-  }, [form.fields]);
+  }, [form.fields, initialValues]);
 
   // Recompute hidden formula field values whenever field values change
   useEffect(() => {
@@ -311,15 +338,41 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
     }));
   }
 
+  /** Determine if a field should be editable based on mode and role */
+  function isFieldEditable(field: FormField): boolean {
+    // In public mode, all visible fields are editable (office-use fields are hidden)
+    if (mode === 'public') return !field.readOnly;
+    // In prefill mode, editor can edit non-office-use fields
+    if (mode === 'prefill') return !field.officeUse && !field.readOnly;
+    // In edit mode, office-use fields are always editable.
+    // Non-office-use fields are only editable if the user has permission.
+    if (mode === 'edit') {
+      if (field.officeUse) return true;
+      return canEditAllFields && !field.readOnly;
+    }
+    return !field.readOnly;
+  }
+
+  /** Filter fields based on mode — office-use fields are hidden in public mode */
+  function shouldIncludeField(field: FormField): boolean {
+    if (mode === 'public' && field.officeUse) return false;
+    // In prefill mode for the pre-fill editor, show all fields but office-use ones are disabled
+    return true;
+  }
+
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (form.settings.enableTurnstile && !turnstileToken) {
+
+      // Turnstile only required for public submissions (not edit/prefill)
+      if (mode === 'public' && form.settings.enableTurnstile && !turnstileToken) {
         toast.error('Please complete the security check');
         return;
       }
 
-      const schema = buildValidationSchema(form.fields, fieldValues, groupRowCounts);
+      // Filter fields for validation based on mode
+      const fieldsToValidate = form.fields.filter((f) => shouldIncludeField(f));
+      const schema = buildValidationSchema(fieldsToValidate, fieldValues, groupRowCounts);
       const result = schema.safeParse(fieldValues);
       if (!result.success) {
         const newErrors: Record<string, string> = {};
@@ -334,11 +387,32 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
 
       setIsSubmitting(true);
       try {
-        await responses.submit(form.slug, fieldValues, turnstileToken);
-        setSubmitted(true);
-        onSubmitSuccess?.();
-        if (form.settings.redirectUrl) {
-          window.location.href = form.settings.redirectUrl;
+        if (mode === 'edit' && responseId) {
+          // Update existing response (office-use completion or amending)
+          await responses.update(responseId, { data: fieldValues });
+          toast.success('Response updated successfully');
+          onSubmitSuccess?.(responseId);
+        } else if (mode === 'prefill') {
+          // Create a pre-fill draft
+          const res = await responses.createPrefill(form.id, fieldValues);
+          toast.success('Pre-fill created');
+          onSubmitSuccess?.(res.id);
+        } else if (draftToken) {
+          // Submit a draft/pre-fill form
+          await responses.submitDraft(draftToken, fieldValues, turnstileToken);
+          setSubmitted(true);
+          onSubmitSuccess?.();
+          if (form.settings.redirectUrl) {
+            window.location.href = form.settings.redirectUrl;
+          }
+        } else {
+          // Standard public submission
+          const res = await responses.submit(form.slug, fieldValues, turnstileToken);
+          setSubmitted(true);
+          onSubmitSuccess?.(res.id);
+          if (form.settings.redirectUrl) {
+            window.location.href = form.settings.redirectUrl;
+          }
         }
       } catch (err: unknown) {
         const error = err as { response?: { data?: { error?: string } } };
@@ -347,7 +421,8 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
         setIsSubmitting(false);
       }
     },
-    [form, turnstileToken, onSubmitSuccess, fieldValues, groupRowCounts],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [form, turnstileToken, onSubmitSuccess, fieldValues, groupRowCounts, mode, responseId, draftToken, canEditAllFields],
   );
 
   useEffect(() => {
@@ -405,7 +480,9 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
         <form onSubmit={onSubmit} className="space-y-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
           {(() => {
             // Group visible fields into layout rows based on width
-            const visibleFields = expandedFields.filter((f) => shouldShowField(f, fieldValues, form.fields));
+            const visibleFields = expandedFields.filter((f) =>
+              shouldIncludeField(f) && shouldShowField(f, fieldValues, form.fields)
+            );
             const layoutRows: FormField[][] = [];
             let currentRow: FormField[] = [];
             let rowWidth = 0;
@@ -471,7 +548,7 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
                           <hr className="border-gray-200 mb-4" />
                         )}
                         <FormFieldRenderer
-                          field={field}
+                          field={isFieldEditable(field) ? field : { ...field, readOnly: true }}
                           value={fieldValues[field.id]}
                           onChange={(val) => setFieldValue(field.id, val)}
                           error={errors[field.id]}
@@ -516,11 +593,18 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
             });
           })()}
 
-          {form.settings.enableTurnstile && (
+          {form.settings.enableTurnstile && mode === 'public' && !draftToken && (
             <TurnstileWidget
               onSuccess={setTurnstileToken}
               onError={() => setTurnstileToken(undefined)}
             />
+          )}
+
+          {/* Office-use indicator in edit mode */}
+          {mode === 'edit' && (
+            <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Fields marked "Office Use" are editable. {canEditAllFields ? 'You can also edit all other fields.' : 'Other fields are read-only.'}
+            </div>
           )}
 
           <Button
@@ -529,7 +613,7 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
             className="w-full"
             style={{ backgroundColor: primaryColor }}
           >
-            {form.settings.submitButtonText || 'Submit'}
+            {submitLabel ?? (mode === 'edit' ? 'Save Changes' : mode === 'prefill' ? 'Create Pre-fill Link' : (form.settings.submitButtonText || 'Submit'))}
           </Button>
         </form>
 

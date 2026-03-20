@@ -155,9 +155,24 @@ export const responses = {
 
   get: (id: string) => get<FormResponse>(`/responses/${id}`),
 
+  update: (id: string, data: { data?: Record<string, unknown>; isSpam?: boolean; submitterEmail?: string; status?: string }) =>
+    patch<FormResponse>(`/responses/${id}`, data),
+
   delete: (id: string) => del<{ message: string }>(`/responses/${id}`),
 
   bulkDelete: (formId: string, ids: string[]) => post<{ message: string }>(`/responses/form/${formId}/bulk-delete`, { ids }),
+
+  /** Create a pre-fill draft for a form (auth required) */
+  createPrefill: (formId: string, data: Record<string, unknown>) =>
+    post<{ id: string; draftToken: string; url: string }>(`/responses/form/${formId}/prefill`, { data }),
+
+  /** Get pre-fill draft data by token (public) */
+  getDraft: (token: string) =>
+    get<{ form: Form; data: Record<string, unknown>; responseId: string }>(`/responses/draft/${token}`),
+
+  /** Submit a pre-fill draft (public) */
+  submitDraft: (token: string, data: Record<string, unknown>, turnstileToken?: string) =>
+    post<{ message: string; id: string }>(`/responses/draft/${token}/submit`, { data, turnstileToken }),
 };
 
 // Export

@@ -176,7 +176,7 @@ interface OptionListRow {
  * If a field has `optionListId`, fetch the options from the option_lists table
  * and replace the field's options array with the latest values from the list.
  */
-async function resolveOptionListReferences(
+export async function resolveOptionListReferences(
   db: D1Database,
   fields: Array<{ optionListId?: string; options?: { label: string; value: string }[] }>
 ) {
@@ -243,7 +243,7 @@ async function getUserOrgRole(
   return m?.role ?? null;
 }
 
-interface FormRow {
+export interface FormRow {
   id: string;
   org_id: string;
   title: string;
@@ -261,7 +261,7 @@ interface FormRow {
   updated_at: string;
 }
 
-function serializeForm(row: FormRow) {
+export function serializeForm(row: FormRow) {
   return {
     id: row.id,
     orgId: row.org_id,

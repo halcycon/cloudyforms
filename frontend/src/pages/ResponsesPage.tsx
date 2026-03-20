@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText, Pencil, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { forms as formsApi, responses as responsesApi, exportData } from '@/lib/api';
 import { downloadFile, formatDate, cn } from '@/lib/utils';
@@ -149,6 +149,9 @@ export default function ResponsesPage() {
           <p className="text-sm text-gray-500">{total} total responses</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate(`/forms/${formId}/prefill`)}>
+            <Link2 className="h-4 w-4" /> Pre-fill
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="h-4 w-4" /> CSV
           </Button>
@@ -222,15 +225,16 @@ export default function ResponsesPage() {
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Submitted</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Preview</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Workflow</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-                <th className="w-10 px-4 py-3"></th>
+                <th className="w-20 px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 Array.from({ length: 5 }, (_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 6 }, (_, j) => (
+                    {Array.from({ length: 7 }, (_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 bg-gray-200 animate-pulse rounded" />
                       </td>
@@ -239,7 +243,7 @@ export default function ResponsesPage() {
                 ))
               ) : responsesList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                     <Filter className="mx-auto h-8 w-8 mb-2" />
                     <p>No responses found</p>
                   </td>
@@ -275,15 +279,35 @@ export default function ResponsesPage() {
                         {preview || '—'}
                       </td>
                       <td className="px-4 py-3">
+                        {resp.status === 'draft' ? (
+                          <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">Draft</Badge>
+                        ) : resp.status === 'completed' ? (
+                          <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Completed</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Submitted</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         {resp.isSpam ? <Badge variant="destructive">Spam</Badge> : <Badge variant="success">Ok</Badge>}
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setExpandedId(resp.id === expandedId ? null : resp.id)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {expandedId === resp.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {resp.status !== 'draft' && (
+                            <button
+                              onClick={() => navigate(`/forms/${formId}/responses/${resp.id}/edit`)}
+                              className="text-gray-400 hover:text-primary-600 p-1"
+                              title="Edit in form view"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setExpandedId(resp.id === expandedId ? null : resp.id)}
+                            className="text-gray-400 hover:text-gray-600 p-1"
+                          >
+                            {expandedId === resp.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

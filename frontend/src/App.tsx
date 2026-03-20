@@ -12,6 +12,9 @@ import DashboardPage from '@/pages/DashboardPage';
 import FormsPage from '@/pages/FormsPage';
 import FormBuilderPage from '@/pages/FormBuilderPage';
 import ResponsesPage from '@/pages/ResponsesPage';
+import ResponseEditPage from '@/pages/ResponseEditPage';
+import PrefillFormPage from '@/pages/PrefillFormPage';
+import PrefillSubmitPage from '@/pages/PrefillSubmitPage';
 import OrganizationsPage from '@/pages/OrganizationsPage';
 import CreateOrgPage from '@/pages/CreateOrgPage';
 import OrgDetailPage from '@/pages/OrgDetailPage';
@@ -61,6 +64,8 @@ export default function App() {
         {/* Minimal embed page – optimised for iframes, no navigation chrome */}
         <Route path="/embed/:slug" element={<EmbedFormPage />} />
         <Route path="/kiosk/:token" element={<KioskPage />} />
+        {/* Pre-fill submission page (public, token-based) */}
+        <Route path="/fill/:token" element={<PrefillSubmitPage />} />
 
         {/* Protected: Form builder (no layout, fullscreen) */}
         <Route
@@ -76,6 +81,24 @@ export default function App() {
           element={
             <ProtectedRoute>
               <FormBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Response editing in form view (office-use completion) */}
+        <Route
+          path="/forms/:formId/responses/:responseId/edit"
+          element={
+            <ProtectedRoute>
+              <ResponseEditPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Pre-fill a form before sending to recipient */}
+        <Route
+          path="/forms/:formId/prefill"
+          element={
+            <ProtectedRoute>
+              <PrefillFormPage />
             </ProtectedRoute>
           }
         />
