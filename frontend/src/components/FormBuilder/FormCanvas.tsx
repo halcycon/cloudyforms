@@ -79,6 +79,7 @@ function SortableField({
   };
 
   const resizing = useRef(false);
+  const rafId = useRef(0);
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -93,17 +94,26 @@ function SortableField({
       if (!rowEl) return;
       const rowWidth = rowEl.getBoundingClientRect().width;
       const startPct = field.width ?? 100;
+      let lastSnapped = startPct;
 
       function onMove(ev: PointerEvent) {
         if (!resizing.current) return;
-        const dx = ev.clientX - startX;
-        const deltaPct = (dx / rowWidth) * 100;
-        const raw = startPct + deltaPct;
-        onWidthChange!(snapWidth(Math.max(25, Math.min(100, raw))));
+        cancelAnimationFrame(rafId.current);
+        rafId.current = requestAnimationFrame(() => {
+          const dx = ev.clientX - startX;
+          const deltaPct = (dx / rowWidth) * 100;
+          const raw = startPct + deltaPct;
+          const snapped = snapWidth(Math.max(25, Math.min(100, raw)));
+          if (snapped !== lastSnapped) {
+            lastSnapped = snapped;
+            onWidthChange!(snapped);
+          }
+        });
       }
 
       function onUp() {
         resizing.current = false;
+        cancelAnimationFrame(rafId.current);
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
       }
