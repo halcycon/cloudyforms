@@ -68,7 +68,14 @@ export function getInitials(name: string): string {
 /** Sanitise a single string value: strip HTML tags and trim whitespace. */
 export function sanitizeOptionString(value: unknown): string {
   if (typeof value !== 'string') return String(value ?? '');
-  return value.replace(/<[^>]*>/g, '').trim();
+  // Apply repeatedly to handle nested/split tags like "<<script>script>"
+  let result = value;
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replace(/<[^>]*>/g, '');
+  } while (result !== prev);
+  return result.trim();
 }
 
 /**
