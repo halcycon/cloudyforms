@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { forms as formsApi, responses as responsesApi } from '@/lib/api';
+import { forms as formsApi, responses as responsesApi, orgs as orgsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import type { Form, FormResponse } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ export default function ResponseEditPage() {
   const [response, setResponse] = useState<FormResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string>('viewer');
+  const [canEditAll, setCanEditAll] = useState(false);
 
   useEffect(() => {
     if (!formId || !responseId) return;
@@ -25,14 +25,22 @@ export default function ResponseEditPage() {
       formsApi.get(formId),
       responsesApi.get(responseId),
     ])
-      .then(([formData, respData]) => {
+      .then(async ([formData, respData]) => {
         setForm(formData);
         setResponse(respData);
-        // Determine user role by checking the org membership
-        // For now we'll use the fact that if a user can load the form, they have some role
-        // The actual ACL enforcement is on the backend
+        // Determine user's actual org role for ACL
         if (user?.isSuperAdmin) {
-          setUserRole('owner');
+          setCanEditAll(true);
+        } else if (user && formData.orgId) {
+          try {
+            const members = await orgsApi.listMembers(formData.orgId);
+            const me = members.find((m) => m.userId === user.id);
+            if (me && (me.role === 'owner' || me.role === 'admin')) {
+              setCanEditAll(true);
+            }
+          } catch {
+            // If we can't fetch members, fall back to editor-level (office-use only)
+          }
         }
       })
       .catch(() => {
@@ -61,8 +69,6 @@ export default function ResponseEditPage() {
       </div>
     );
   }
-
-  const canEditAll = userRole === 'owner' || userRole === 'admin' || user?.isSuperAdmin === true;
 
   return (
     <div className="relative">

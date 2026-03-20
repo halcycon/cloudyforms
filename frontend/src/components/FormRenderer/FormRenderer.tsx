@@ -421,6 +421,7 @@ export function FormRenderer({
         setIsSubmitting(false);
       }
     },
+    // shouldIncludeField uses mode and canEditAllFields which are stable across renders
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, turnstileToken, onSubmitSuccess, fieldValues, groupRowCounts, mode, responseId, draftToken, canEditAllFields],
   );
@@ -603,7 +604,7 @@ export function FormRenderer({
           {/* Office-use indicator in edit mode */}
           {mode === 'edit' && (
             <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Fields marked "Office Use" are editable. {canEditAllFields ? 'You can also edit all other fields.' : 'Other fields are read-only.'}
+              Office-use fields are editable. {canEditAllFields ? 'All other fields are also editable.' : 'Other fields are read-only.'}
             </div>
           )}
 

@@ -9,7 +9,7 @@ import { generateFingerprint } from "../lib/fingerprint";
 import { sendEmail, buildFormReceiptEmail, buildNotificationEmail } from "../lib/email";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
-import { resolveOptionListReferences, serializeForm, type FormRow } from "./forms";
+import { resolveOptionListReferences, serializeForm, type FormRow as FullFormRow } from "./forms";
 
 const responses = new Hono<{ Bindings: Bindings }>();
 
@@ -379,40 +379,36 @@ responses.get("/:responseId", authMiddleware, async (c) => {
 });
 
 // Update response (admin/owner can edit all; editor can edit office-use fields)
-// Registered on both PUT and PATCH so the frontend patch() helper works.
-const updateResponseHandler = async (c: Parameters<Parameters<typeof responses.put>[1]>[0]) => {
-  const user = c.get("user");
-  const { responseId } = c.req.param();
 
+/** Shared logic for PUT/PATCH /:responseId */
+async function handleUpdateResponse(
+  db: D1Database,
+  userId: string,
+  isSuperAdmin: boolean,
+  responseId: string,
+  body: { data?: Record<string, unknown>; isSpam?: boolean; submitterEmail?: string; status?: string },
+): Promise<{ status: number; body: unknown }> {
   const row = await dbQueryFirst<ResponseRow & { org_id: string; fields: string }>(
-    c.env.DB,
+    db,
     `SELECT r.*, f.org_id, f.fields FROM form_responses r JOIN forms f ON f.id = r.form_id WHERE r.id = ?`,
     [responseId]
   );
 
-  if (!row) return c.json({ error: "Response not found" }, 404);
+  if (!row) return { status: 404, body: { error: "Response not found" } };
 
-  const role = user.isSuperAdmin
+  const role = isSuperAdmin
     ? "owner"
-    : await getUserOrgRole(c.env.DB, user.userId, row.org_id);
+    : await getUserOrgRole(db, userId, row.org_id);
 
   if (!role || role === "viewer") {
-    return c.json({ error: "Access denied" }, 403);
+    return { status: 403, body: { error: "Access denied" } };
   }
-
-  const body = await c.req.json<{
-    data?: Record<string, unknown>;
-    isSpam?: boolean;
-    submitterEmail?: string;
-    status?: string;
-  }>();
 
   // If editor (not admin/owner), restrict to office-use fields only
   if (role === "editor" && body.data) {
     const formFields = JSON.parse(row.fields) as { id: string; officeUse?: boolean }[];
     const officeFieldIds = new Set(formFields.filter((f) => f.officeUse).map((f) => f.id));
     const existingData = JSON.parse(row.data) as Record<string, unknown>;
-    // Merge: only allow changes to office-use fields
     const mergedData = { ...existingData };
     for (const [key, value] of Object.entries(body.data)) {
       if (officeFieldIds.has(key) || officeFieldIds.has(key.replace(/_row_\d+$/, ""))) {
@@ -430,28 +426,42 @@ const updateResponseHandler = async (c: Parameters<Parameters<typeof responses.p
   if (body.submitterEmail !== undefined) { sets.push("submitter_email = ?"); params.push(body.submitterEmail); }
   if (body.status !== undefined) { sets.push("status = ?"); params.push(body.status); }
 
-  // Always track who updated and when
-  sets.push("updated_by = ?"); params.push(user.userId);
-  sets.push("updated_at = ?"); params.push(new Date().toISOString());
-
   if (sets.length === 0) {
-    return c.json({ error: "No updates provided" }, 400);
+    return { status: 400, body: { error: "No updates provided" } };
   }
 
+  // Track who updated and when
+  sets.push("updated_by = ?"); params.push(userId);
+  sets.push("updated_at = ?"); params.push(new Date().toISOString());
+
   params.push(responseId);
-  await dbRun(c.env.DB, `UPDATE form_responses SET ${sets.join(", ")} WHERE id = ?`, params);
+  await dbRun(db, `UPDATE form_responses SET ${sets.join(", ")} WHERE id = ?`, params);
 
   const updated = await dbQueryFirst<ResponseRow>(
-    c.env.DB,
+    db,
     "SELECT * FROM form_responses WHERE id = ?",
     [responseId]
   );
 
-  return c.json(serializeResponse(updated!));
-};
+  return { status: 200, body: serializeResponse(updated!) };
+}
 
-responses.put("/:responseId", authMiddleware, updateResponseHandler);
-responses.patch("/:responseId", authMiddleware, updateResponseHandler);
+// Registered on both PUT and PATCH so the frontend patch() helper works.
+responses.put("/:responseId", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const { responseId } = c.req.param();
+  const body = await c.req.json();
+  const result = await handleUpdateResponse(c.env.DB, user.userId, user.isSuperAdmin, responseId, body);
+  return c.json(result.body, result.status as 200);
+});
+
+responses.patch("/:responseId", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const { responseId } = c.req.param();
+  const body = await c.req.json();
+  const result = await handleUpdateResponse(c.env.DB, user.userId, user.isSuperAdmin, responseId, body);
+  return c.json(result.body, result.status as 200);
+});
 
 // ── Pre-fill / Draft endpoints ─────────────────────────────────────────────────
 
@@ -507,7 +517,7 @@ responses.get("/draft/:token", async (c) => {
   if (!row) return c.json({ error: "Draft not found or already submitted" }, 404);
 
   // Get form definition
-  const formRow = await dbQueryFirst<FormRow>(
+  const formRow = await dbQueryFirst<FullFormRow>(
     c.env.DB,
     "SELECT * FROM forms WHERE id = ?",
     [row.form_id]
@@ -521,10 +531,10 @@ responses.get("/draft/:token", async (c) => {
   await resolveOptionListReferences(c.env.DB, formData.fields);
 
   // Remove access code from public response
-  delete formData.accessCode;
+  const { accessCode: _ac, ...safeFormData } = formData;
 
   return c.json({
-    form: formData,
+    form: safeFormData,
     data: JSON.parse(row.data),
     responseId: row.id,
   });
