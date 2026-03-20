@@ -1,6 +1,6 @@
 import type { FormField } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Star, Minus } from 'lucide-react';
+import { Star, Minus, EyeOff } from 'lucide-react';
 
 interface FieldPreviewProps {
   field: FormField;
@@ -22,6 +22,25 @@ export function FieldPreview({ field }: FieldPreviewProps) {
       <div className="flex items-center gap-2">
         <Minus className="h-4 w-4 text-gray-400" />
         <hr className="flex-1 border-gray-200" />
+      </div>
+    );
+  }
+
+  if (field.type === 'hidden') {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <EyeOff className="h-3.5 w-3.5 text-gray-400" />
+          <span className="text-sm font-medium text-gray-700">{field.label}</span>
+          {field.visibleToUser && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">read-only</span>}
+        </div>
+        <div className={cn(inputClass, 'flex items-center gap-2 text-xs italic')} style={{ height: 36 }}>
+          {field.formula ? (
+            <span className="text-indigo-400">ƒ {field.formula}</span>
+          ) : (
+            <span>{field.defaultValue || 'No value set'}</span>
+          )}
+        </div>
       </div>
     );
   }

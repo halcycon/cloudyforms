@@ -94,7 +94,7 @@ function buildValidationSchema(
   const expanded = expandFields(fields, groupRowCounts);
 
   for (const field of expanded) {
-    if (['heading', 'paragraph', 'divider'].includes(field.type)) continue;
+    if (['heading', 'paragraph', 'divider', 'hidden'].includes(field.type)) continue;
 
     // Don't validate fields hidden by conditional logic
     if (!shouldShowField(field, formValues)) continue;
@@ -177,6 +177,23 @@ function shouldShowField(field: FormField, formValues: Record<string, unknown>):
   return action === 'show' ? conditionMet : !conditionMet;
 }
 
+/** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
+function evaluateFormula(
+  formula: string,
+  allFields: FormField[],
+  formValues: Record<string, unknown>,
+): string {
+  return formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
+    const trimmed = label.trim().toLowerCase();
+    const field = allFields.find(
+      (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
+    );
+    if (!field) return '';
+    const val = formValues[field.id];
+    return val != null ? String(val) : '';
+  });
+}
+
 export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
   const [submitted, setSubmitted] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
@@ -195,7 +212,7 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
     setGroupRowCounts(initial);
   }, [form.fields]);
 
-  // Initialize default values from options with default: true
+  // Initialize default values from options with default: true and hidden field defaults
   useEffect(() => {
     const defaults: Record<string, unknown> = {};
     for (const f of form.fields) {
@@ -209,11 +226,33 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
           }
         }
       }
+      // Initialize hidden fields with defaultValue when there is no formula
+      if (f.type === 'hidden' && f.defaultValue != null && !f.formula) {
+        defaults[f.id] = f.defaultValue;
+      }
     }
     if (Object.keys(defaults).length > 0) {
       setFieldValues((prev) => ({ ...defaults, ...prev }));
     }
   }, [form.fields]);
+
+  // Recompute hidden formula field values whenever field values change
+  useEffect(() => {
+    const formulaFields = form.fields.filter((f) => f.type === 'hidden' && f.formula);
+    if (formulaFields.length === 0) return;
+    const updates: Record<string, unknown> = {};
+    for (const f of formulaFields) {
+      updates[f.id] = evaluateFormula(f.formula!, form.fields, fieldValues);
+    }
+    // Only update if computed values actually changed to avoid infinite loops
+    setFieldValues((prev) => {
+      let changed = false;
+      for (const [k, v] of Object.entries(updates)) {
+        if (prev[k] !== v) { changed = true; break; }
+      }
+      return changed ? { ...prev, ...updates } : prev;
+    });
+  }, [form.fields, fieldValues]);
 
   const bgColor = form.branding.backgroundColor ?? '#f9fafb';
   const primaryColor = form.branding.primaryColor ?? '#4f46e5';

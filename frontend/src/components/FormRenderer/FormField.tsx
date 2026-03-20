@@ -96,6 +96,20 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
     return <hr className="border-gray-200" />;
   }
 
+  // Hidden fields: render nothing if not visible, or read-only display if visibleToUser
+  if (field.type === 'hidden') {
+    if (!field.visibleToUser) return null;
+    return (
+      <div className="space-y-1">
+        {labelEl}
+        {descEl}
+        <div className="flex h-9 w-full items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+          {(value as string) ?? field.defaultValue ?? ''}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       {labelEl}
@@ -147,22 +161,32 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
         />
       )}
 
-      {field.type === 'select' && (
-        <select
-          className={cn(
-            'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm',
-            'focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent',
-            error && 'border-red-500',
-          )}
-          value={(value as string) ?? ''}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">{field.placeholder ?? 'Select an option...'}</option>
-          {field.options?.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      )}
+      {field.type === 'select' && (() => {
+        const defaultOpt = field.options?.find((o) => o.default);
+        return (
+          <select
+            className={cn(
+              'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm',
+              'focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent',
+              error && 'border-red-500',
+            )}
+            value={(value as string) ?? (defaultOpt?.value ?? '')}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {defaultOpt ? (
+              <>
+                <option value={defaultOpt.value}>{defaultOpt.label}</option>
+                <option disabled>{'─'.repeat(20)}</option>
+              </>
+            ) : (
+              <option value="">{field.placeholder ?? 'Select an option...'}</option>
+            )}
+            {field.options?.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        );
+      })()}
 
       {field.type === 'multiselect' && (
         <div className="space-y-2">

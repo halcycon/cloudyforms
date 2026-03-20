@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, FileJson, Star } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star, EyeOff } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
@@ -117,9 +117,10 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   }
 
   const hasOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type);
-  const hasPlaceholder = !['heading', 'paragraph', 'divider', 'rating', 'scale', 'checkbox', 'file', 'signature'].includes(field.type);
+  const hasPlaceholder = !['heading', 'paragraph', 'divider', 'rating', 'scale', 'checkbox', 'file', 'signature', 'hidden'].includes(field.type);
   const hasContent = field.type === 'heading' || field.type === 'paragraph';
   const isLayout = ['heading', 'paragraph', 'divider'].includes(field.type);
+  const isHidden = field.type === 'hidden';
 
   return (
     <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
@@ -216,7 +217,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
         )}
 
         {/* Required toggle */}
-        {!isLayout && (
+        {!isLayout && !isHidden && (
           <div className="flex items-center justify-between">
             <Label>Required</Label>
             <Switch
@@ -224,6 +225,57 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
               onCheckedChange={(v) => onChange({ required: v })}
             />
           </div>
+        )}
+
+        {/* Hidden field settings */}
+        {isHidden && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <EyeOff className="h-4 w-4 text-gray-500" />
+                <Label>Hidden Field Settings</Label>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Default Value</Label>
+                <Input
+                  value={field.defaultValue ?? ''}
+                  onChange={(e) => onChange({ defaultValue: e.target.value })}
+                  placeholder="Static value for this field"
+                />
+                <p className="text-[10px] text-gray-400">
+                  A fixed value included in every submission.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Formula</Label>
+                <Textarea
+                  value={field.formula ?? ''}
+                  onChange={(e) => onChange({ formula: e.target.value })}
+                  placeholder={'e.g. {{First Name}} {{Last Name}}'}
+                  rows={2}
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-gray-400">
+                  Computed from other fields using {'{{Field Label}}'} placeholders.
+                  If set, overrides the default value.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Visible to user</Label>
+                  <p className="text-[10px] text-gray-400">Show as read-only</p>
+                </div>
+                <Switch
+                  checked={field.visibleToUser ?? false}
+                  onCheckedChange={(v) => onChange({ visibleToUser: v })}
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {/* Field Width */}
