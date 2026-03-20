@@ -96,6 +96,20 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
     return <hr className="border-gray-200" />;
   }
 
+  // Hidden fields: render nothing if not visible, or read-only display if visibleToUser
+  if (field.type === 'hidden') {
+    if (!field.visibleToUser) return null;
+    return (
+      <div className="space-y-1">
+        {labelEl}
+        {descEl}
+        <div className="flex h-9 w-full items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+          {(value as string) ?? field.defaultValue ?? ''}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       {labelEl}

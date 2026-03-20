@@ -18,7 +18,8 @@ export type FieldType =
   | 'heading'
   | 'paragraph'
   | 'divider'
-  | 'signature';
+  | 'signature'
+  | 'hidden';
 
 export interface User {
   id: string;
@@ -89,6 +90,12 @@ export interface FormField {
   optionListId?: string;
   /** Width of the field as a percentage (25, 33, 50, 66, 75, 100). Defaults to 100. */
   width?: number;
+  /** Static default value for the field (used by hidden fields) */
+  defaultValue?: string;
+  /** Expression to compute value from other fields, e.g. "{{First Name}} {{Last Name}}" */
+  formula?: string;
+  /** When true, hidden fields are shown to the user but cannot be edited */
+  visibleToUser?: boolean;
   /** Configuration for repeatable field groups */
   repeatableGroup?: {
     /** Whether this field is the first (anchor) field in a repeatable group */

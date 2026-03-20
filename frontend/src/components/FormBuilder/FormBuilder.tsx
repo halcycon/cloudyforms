@@ -72,6 +72,7 @@ function createField(type: FieldType): FormField {
   if (type === 'scale') { base.min = 1; base.max = 10; base.step = 1; }
   if (type === 'heading') { base.level = 2; base.content = 'Section Heading'; }
   if (type === 'paragraph') { base.content = 'Add your paragraph text here.'; }
+  if (type === 'hidden') { base.label = 'Hidden Field'; base.defaultValue = ''; }
 
   return base;
 }
