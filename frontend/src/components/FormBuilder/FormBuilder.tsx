@@ -444,6 +444,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 onSelectField={setSelectedFieldId}
                 onDeleteField={deleteField}
                 onDuplicateField={duplicateField}
+                onFieldWidthChange={(id, width) => updateField(id, { width })}
               />
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import {
   SortableContext,
   useSortable,
@@ -10,15 +11,58 @@ import type { FormField } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { FieldPreview } from './FieldPreview';
 
+/** Snap a raw percentage to the nearest allowed column width */
+function snapWidth(pct: number): number {
+  const stops = [25, 33, 50, 66, 75, 100];
+  let closest = 100;
+  let minDist = Infinity;
+  for (const s of stops) {
+    const d = Math.abs(pct - s);
+    if (d < minDist) { minDist = d; closest = s; }
+  }
+  return closest;
+}
+
+/** Group a flat field list into rows where widths sum to ≤ 100 */
+export function groupFieldsIntoRows(fields: FormField[]): FormField[][] {
+  const rows: FormField[][] = [];
+  let currentRow: FormField[] = [];
+  let rowWidth = 0;
+
+  for (const field of fields) {
+    const w = field.width ?? 100;
+    if (currentRow.length > 0 && rowWidth + w > 100) {
+      rows.push(currentRow);
+      currentRow = [field];
+      rowWidth = w;
+    } else {
+      currentRow.push(field);
+      rowWidth += w;
+    }
+  }
+  if (currentRow.length > 0) rows.push(currentRow);
+  return rows;
+}
+
 interface SortableFieldProps {
   field: FormField;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onWidthChange?: (width: number) => void;
+  showResize?: boolean;
 }
 
-function SortableField({ field, isSelected, onSelect, onDelete, onDuplicate }: SortableFieldProps) {
+function SortableField({
+  field,
+  isSelected,
+  onSelect,
+  onDelete,
+  onDuplicate,
+  onWidthChange,
+  showResize,
+}: SortableFieldProps) {
   const {
     attributes,
     listeners,
@@ -34,10 +78,59 @@ function SortableField({ field, isSelected, onSelect, onDelete, onDuplicate }: S
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const resizing = useRef(false);
+  const rafId = useRef(0);
+
+  const handleResizeStart = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (!onWidthChange) return;
+      resizing.current = true;
+      const startX = e.clientX;
+      const el = (e.target as HTMLElement).closest('[data-field-wrapper]') as HTMLElement | null;
+      if (!el) return;
+      const rowEl = el.parentElement;
+      if (!rowEl) return;
+      const rowWidth = rowEl.getBoundingClientRect().width;
+      const startPct = field.width ?? 100;
+      let lastSnapped = startPct;
+
+      function onMove(ev: PointerEvent) {
+        if (!resizing.current) return;
+        cancelAnimationFrame(rafId.current);
+        rafId.current = requestAnimationFrame(() => {
+          const dx = ev.clientX - startX;
+          const deltaPct = (dx / rowWidth) * 100;
+          const raw = startPct + deltaPct;
+          const snapped = snapWidth(Math.max(25, Math.min(100, raw)));
+          if (snapped !== lastSnapped) {
+            lastSnapped = snapped;
+            onWidthChange!(snapped);
+          }
+        });
+      }
+
+      function onUp() {
+        resizing.current = false;
+        cancelAnimationFrame(rafId.current);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    },
+    [field.width, onWidthChange],
+  );
+
+  const width = field.width ?? 100;
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, width: `${width}%` }}
+      data-field-wrapper=""
       onClick={onSelect}
       className={cn(
         'group relative rounded-lg border-2 bg-white p-4 cursor-pointer transition-colors',
@@ -80,6 +173,23 @@ function SortableField({ field, isSelected, onSelect, onDelete, onDuplicate }: S
       <div className="pl-4">
         <FieldPreview field={field} />
       </div>
+
+      {/* Width badge */}
+      {width < 100 && (
+        <span className="absolute bottom-1 right-2 text-[10px] text-gray-400">
+          {width}%
+        </span>
+      )}
+
+      {/* Resize handle on right edge */}
+      {showResize && (
+        <div
+          onPointerDown={handleResizeStart}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 bg-primary-400 hover:bg-primary-600 rounded-r-lg transition-opacity"
+          title="Drag to resize width"
+        />
+      )}
     </div>
   );
 }
@@ -90,6 +200,7 @@ interface FormCanvasProps {
   onSelectField: (id: string) => void;
   onDeleteField: (id: string) => void;
   onDuplicateField: (id: string) => void;
+  onFieldWidthChange?: (id: string, width: number) => void;
 }
 
 export function FormCanvas({
@@ -98,11 +209,14 @@ export function FormCanvas({
   onSelectField,
   onDeleteField,
   onDuplicateField,
+  onFieldWidthChange,
 }: FormCanvasProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'form-canvas',
     data: { type: 'canvas' },
   });
+
+  const rows = groupFieldsIntoRows(fields);
 
   return (
     <div
@@ -132,15 +246,25 @@ export function FormCanvas({
       ) : (
         <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
-            {fields.map((field) => (
-              <SortableField
-                key={field.id}
-                field={field}
-                isSelected={selectedFieldId === field.id}
-                onSelect={() => onSelectField(field.id)}
-                onDelete={() => onDeleteField(field.id)}
-                onDuplicate={() => onDuplicateField(field.id)}
-              />
+            {rows.map((row) => (
+              <div key={row.map((f) => f.id).join('+')} className="flex gap-2">
+                {row.map((field) => (
+                  <SortableField
+                    key={field.id}
+                    field={field}
+                    isSelected={selectedFieldId === field.id}
+                    onSelect={() => onSelectField(field.id)}
+                    onDelete={() => onDeleteField(field.id)}
+                    onDuplicate={() => onDuplicateField(field.id)}
+                    onWidthChange={
+                      onFieldWidthChange
+                        ? (w) => onFieldWidthChange(field.id, w)
+                        : undefined
+                    }
+                    showResize={(field.width ?? 100) < 100 || row.length > 1}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         </SortableContext>
