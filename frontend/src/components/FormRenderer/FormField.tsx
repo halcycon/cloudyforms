@@ -147,22 +147,32 @@ export function FormFieldRenderer({ field, value, onChange, error }: FormFieldPr
         />
       )}
 
-      {field.type === 'select' && (
-        <select
-          className={cn(
-            'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm',
-            'focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent',
-            error && 'border-red-500',
-          )}
-          value={(value as string) ?? ''}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">{field.placeholder ?? 'Select an option...'}</option>
-          {field.options?.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      )}
+      {field.type === 'select' && (() => {
+        const defaultOpt = field.options?.find((o) => o.default);
+        return (
+          <select
+            className={cn(
+              'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm',
+              'focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent',
+              error && 'border-red-500',
+            )}
+            value={(value as string) ?? (defaultOpt?.value ?? '')}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {defaultOpt ? (
+              <>
+                <option value={defaultOpt.value}>{defaultOpt.label}</option>
+                <option disabled>{'─'.repeat(20)}</option>
+              </>
+            ) : (
+              <option value="">{field.placeholder ?? 'Select an option...'}</option>
+            )}
+            {field.options?.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        );
+      })()}
 
       {field.type === 'multiselect' && (
         <div className="space-y-2">
