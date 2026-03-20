@@ -88,7 +88,7 @@ export interface FormField {
     logicType: 'all' | 'any';
   };
   optionListId?: string;
-  /** Width of the field as a percentage (25, 33, 50, 66, 75, 100). Defaults to 100. */
+  /** Width of the field as a percentage (10–100). Defaults to 100. */
   width?: number;
   /** Static default value for the field (used by hidden fields) */
   defaultValue?: string;
@@ -96,6 +96,8 @@ export interface FormField {
   formula?: string;
   /** When true, hidden fields are shown to the user but cannot be edited */
   visibleToUser?: boolean;
+  /** When true, the field is rendered but cannot be edited by the user */
+  readOnly?: boolean;
   /** Configuration for repeatable field groups */
   repeatableGroup?: {
     /** Whether this field is the first (anchor) field in a repeatable group */

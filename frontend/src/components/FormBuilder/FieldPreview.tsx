@@ -50,6 +50,7 @@ export function FieldPreview({ field }: FieldPreviewProps) {
       <div className="flex items-center gap-1">
         <span className="text-sm font-medium text-gray-700">{field.label}</span>
         {field.required && <span className="text-red-500 text-xs">*</span>}
+        {field.readOnly && <span className="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">read-only</span>}
       </div>
       {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
 

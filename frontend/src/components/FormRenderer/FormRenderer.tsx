@@ -230,6 +230,10 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
       if (f.type === 'hidden' && f.defaultValue != null && !f.formula) {
         defaults[f.id] = f.defaultValue;
       }
+      // Initialize read-only fields with defaultValue
+      if (f.readOnly && f.defaultValue != null && f.type !== 'hidden') {
+        defaults[f.id] = f.defaultValue;
+      }
     }
     if (Object.keys(defaults).length > 0) {
       setFieldValues((prev) => ({ ...defaults, ...prev }));
@@ -391,6 +395,11 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
 
             return layoutRows.map((row) => {
               const isMultiCol = row.length > 1 || (row[0]?.width ?? 100) < 100;
+              // When multiple fields are on the same row and some have descriptions,
+              // reserve description space on all fields so inputs align horizontally
+              const rowHasDescription = isMultiCol && row.some((f) =>
+                f.description && !['heading', 'paragraph', 'divider'].includes(f.type)
+              );
               return (
                 <div key={row.map((f) => f.id).join('+')} className={isMultiCol ? 'flex flex-wrap gap-x-4 gap-y-6' : undefined}>
                   {row.map((field) => {
@@ -420,8 +429,10 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
                       baseId === groupDef.fields[0].id;
 
                     const fieldWidth = field.width ?? 100;
+                    // Account for flex gap (gap-x-4 = 1rem) to prevent row overflow
+                    const gapRem = (row.length - 1) * 1;
                     const widthStyle = isMultiCol
-                      ? { width: `calc(${fieldWidth}% - ${fieldWidth < 100 ? '0.5rem' : '0px'})`, minWidth: 0 }
+                      ? { width: `calc(${fieldWidth}% - ${(fieldWidth / 100) * gapRem}rem)`, minWidth: 0 }
                       : undefined;
 
                     return (
@@ -434,6 +445,7 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
                           value={fieldValues[field.id]}
                           onChange={(val) => setFieldValue(field.id, val)}
                           error={errors[field.id]}
+                          reserveDescriptionSpace={rowHasDescription}
                         />
                         {showGroupControls && groupId && groupDef && (
                           <div className="flex items-center gap-2 mt-3">
