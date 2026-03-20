@@ -324,8 +324,13 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
                   value={selectValue}
                   onValueChange={(v) => {
                     if (v === 'custom') {
-                      // Keep current width but switch to custom mode
-                      if (isPreset) onChange({ width: currentWidth });
+                      // Switch to custom mode — pick a non-preset value so the
+                      // custom number input becomes visible immediately.
+                      if (isPreset) {
+                        const custom = currentWidth === 100 ? 50 : currentWidth;
+                        // Nudge by 1 so it's no longer a preset and input shows
+                        onChange({ width: presets.includes(custom) ? custom + 1 : custom });
+                      }
                     } else {
                       onChange({ width: Number(v) });
                     }
@@ -663,7 +668,7 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
         )}
 
         {/* Conditional Logic */}
-        {!isLayout && allFields.filter((f) => f.id !== field.id && !['heading', 'paragraph', 'divider'].includes(f.type)).length > 0 && (
+        {allFields.filter((f) => f.id !== field.id && !['heading', 'paragraph', 'divider'].includes(f.type)).length > 0 && (
           <>
             <Separator />
             <div className="space-y-3">
@@ -833,6 +838,81 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
             </div>
           </>
         )}
+        {/* Conditional Group (show/hide a set of fields together) */}
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Conditional Group</Label>
+              <Switch
+                checked={!!field.conditionalGroup}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    onChange({
+                      conditionalGroup: {
+                        isGroupStart: true,
+                        groupId: `cg_${crypto.randomUUID().slice(0, 8)}`,
+                      },
+                    });
+                  } else {
+                    onChange({ conditionalGroup: undefined });
+                  }
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              Group fields together so they can be shown/hidden as a unit.
+              Set the conditional on the group start field.
+            </p>
+
+            {field.conditionalGroup && (
+              <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50 p-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-teal-700">Group ID</Label>
+                  <Input
+                    value={field.conditionalGroup.groupId}
+                    onChange={(e) =>
+                      onChange({
+                        conditionalGroup: {
+                          ...field.conditionalGroup!,
+                          groupId: e.target.value,
+                        },
+                      })
+                    }
+                    className="h-7 text-xs"
+                    placeholder="Shared group identifier"
+                  />
+                  <p className="text-[10px] text-teal-500">
+                    Fields sharing this Group ID will show/hide together
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={field.conditionalGroup.isGroupStart}
+                    onCheckedChange={(isGroupStart) =>
+                      onChange({
+                        conditionalGroup: {
+                          ...field.conditionalGroup!,
+                          isGroupStart,
+                        },
+                      })
+                    }
+                  />
+                  <Label className="text-xs text-teal-700">
+                    First field in group
+                  </Label>
+                </div>
+                {field.conditionalGroup.isGroupStart && (
+                  <p className="text-[10px] text-teal-500">
+                    The conditional logic on this field will control visibility of the entire group
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+
         {/* Repeatable Group */}
         {!isLayout && (
           <>

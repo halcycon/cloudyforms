@@ -97,7 +97,7 @@ function buildValidationSchema(
     if (['heading', 'paragraph', 'divider', 'hidden'].includes(field.type)) continue;
 
     // Don't validate fields hidden by conditional logic
-    if (!shouldShowField(field, formValues)) continue;
+    if (!shouldShowField(field, formValues, fields)) continue;
 
     let schema: z.ZodTypeAny = z.unknown();
 
@@ -156,9 +156,11 @@ function buildValidationSchema(
   return z.object(shape);
 }
 
-function shouldShowField(field: FormField, formValues: Record<string, unknown>): boolean {
-  if (!field.conditionalLogic) return true;
-  const { action, conditions, logicType } = field.conditionalLogic;
+function evaluateConditional(
+  logic: NonNullable<FormField['conditionalLogic']>,
+  formValues: Record<string, unknown>,
+): boolean {
+  const { action, conditions, logicType } = logic;
 
   const results = conditions.map((cond) => {
     const fieldValue = String(formValues[cond.fieldId] ?? '');
@@ -175,6 +177,33 @@ function shouldShowField(field: FormField, formValues: Record<string, unknown>):
 
   const conditionMet = logicType === 'all' ? results.every(Boolean) : results.some(Boolean);
   return action === 'show' ? conditionMet : !conditionMet;
+}
+
+function shouldShowField(
+  field: FormField,
+  formValues: Record<string, unknown>,
+  allFields: FormField[],
+): boolean {
+  // If the field belongs to a conditional group, apply the group-start field's
+  // conditional logic to every member of the group.
+  if (field.conditionalGroup) {
+    const groupStart = allFields.find(
+      (f) =>
+        f.conditionalGroup?.groupId === field.conditionalGroup!.groupId &&
+        f.conditionalGroup.isGroupStart,
+    );
+    if (groupStart?.conditionalLogic) {
+      if (!evaluateConditional(groupStart.conditionalLogic, formValues)) return false;
+    }
+  }
+
+  // Then apply the field's own conditional logic (if any).
+  // For the group start field, skip — its conditional already controls the group above.
+  if (field.conditionalLogic && !field.conditionalGroup?.isGroupStart) {
+    if (!evaluateConditional(field.conditionalLogic, formValues)) return false;
+  }
+
+  return true;
 }
 
 /** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
@@ -375,7 +404,7 @@ export function FormRenderer({ form, onSubmitSuccess }: FormRendererProps) {
         <form onSubmit={onSubmit} className="space-y-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
           {(() => {
             // Group visible fields into layout rows based on width
-            const visibleFields = expandedFields.filter((f) => shouldShowField(f, fieldValues));
+            const visibleFields = expandedFields.filter((f) => shouldShowField(f, fieldValues, form.fields));
             const layoutRows: FormField[][] = [];
             let currentRow: FormField[] = [];
             let rowWidth = 0;

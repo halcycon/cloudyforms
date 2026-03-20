@@ -11,12 +11,13 @@ import type { FormField } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { FieldPreview } from './FieldPreview';
 
+const PRESET_WIDTHS = [25, 33, 50, 66, 75, 100];
+
 /** Snap a raw percentage to the nearest allowed column width */
 function snapWidth(pct: number): number {
-  const stops = [25, 33, 50, 66, 75, 100];
   let closest = 100;
   let minDist = Infinity;
-  for (const s of stops) {
+  for (const s of PRESET_WIDTHS) {
     const d = Math.abs(pct - s);
     if (d < minDist) { minDist = d; closest = s; }
   }
@@ -97,7 +98,9 @@ function SortableField({
       if (!rowEl) return;
       const rowWidth = rowEl.getBoundingClientRect().width;
       const startPct = field.width ?? 100;
-      let lastSnapped = startPct;
+      // If the field already has a non-preset (custom) width, allow free-form dragging
+      const useSnap = PRESET_WIDTHS.includes(startPct);
+      let lastValue = startPct;
 
       function onMove(ev: PointerEvent) {
         if (!resizing.current) return;
@@ -106,10 +109,11 @@ function SortableField({
           const dx = ev.clientX - startX;
           const deltaPct = (dx / rowWidth) * 100;
           const raw = startPct + deltaPct;
-          const snapped = snapWidth(Math.max(25, Math.min(100, raw)));
-          if (snapped !== lastSnapped) {
-            lastSnapped = snapped;
-            onWidthChange!(snapped);
+          const clamped = Math.max(10, Math.min(100, raw));
+          const value = useSnap ? snapWidth(clamped) : Math.round(clamped);
+          if (value !== lastValue) {
+            lastValue = value;
+            onWidthChange!(value);
           }
         });
       }

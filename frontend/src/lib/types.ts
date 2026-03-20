@@ -98,6 +98,14 @@ export interface FormField {
   visibleToUser?: boolean;
   /** When true, the field is rendered but cannot be edited by the user */
   readOnly?: boolean;
+  /** Configuration for conditional field groups (show/hide a set of fields together) */
+  conditionalGroup?: {
+    /** Unique group identifier shared by all fields in the group */
+    groupId: string;
+    /** Whether this field is the first (anchor) field in the conditional group.
+     *  The group start field's conditionalLogic applies to every field in the group. */
+    isGroupStart: boolean;
+  };
   /** Configuration for repeatable field groups */
   repeatableGroup?: {
     /** Whether this field is the first (anchor) field in a repeatable group */
