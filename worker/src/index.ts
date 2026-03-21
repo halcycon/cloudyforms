@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { authRoutes } from "./routes/auth";
 import { orgRoutes } from "./routes/organizations";
+import { groupRoutes } from "./routes/groups";
 import { formRoutes } from "./routes/forms";
 import { responseRoutes } from "./routes/responses";
 import { kioskRoutes } from "./routes/kiosk";
@@ -13,6 +14,7 @@ import { exportRoutes } from "./routes/export";
 import { fileRoutes } from "./routes/files";
 import { orgDomainRoutes, adminDomainRoutes } from "./routes/domains";
 import { embedRoutes } from "./routes/embed";
+import { workflowRoutes } from "./routes/workflow";
 import { domainMiddleware } from "./middleware/domain";
 import { loggerMiddleware } from "./middleware/logger";
 
@@ -71,8 +73,10 @@ app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOStri
 // Routes
 app.route("/api/auth", authRoutes);
 app.route("/api/orgs", orgRoutes);
+app.route("/api/orgs", groupRoutes);          // group sub-routes under /api/orgs/:orgId/groups
 app.route("/api/orgs", orgDomainRoutes);   // domain sub-routes under /api/orgs/:orgId/domains
 app.route("/api/forms", formRoutes);
+app.route("/api/forms", workflowRoutes);   // workflow sub-routes under /api/forms/:formId/workflow
 app.route("/api/responses", responseRoutes);
 app.route("/api/kiosk", kioskRoutes);
 app.route("/api/webhooks", webhookRoutes);

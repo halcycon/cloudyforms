@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS form_responses (
   is_spam INTEGER DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'submitted', -- draft, submitted, completed
   draft_token TEXT UNIQUE,
+  current_stage TEXT,                        -- current workflow stage ID (NULL = no workflow)
   updated_by TEXT REFERENCES users(id),
   updated_at TEXT,
   created_at TEXT DEFAULT (datetime('now'))
@@ -167,6 +168,40 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- User Groups (named permission groups within an organization)
+CREATE TABLE IF NOT EXISTS org_groups (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(org_id, name)
+);
+
+-- User Group Members (assign org members to groups)
+CREATE TABLE IF NOT EXISTS org_group_members (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES org_groups(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(group_id, user_id)
+);
+
+-- Form Workflow Stages (sequential sign-off stages for a form)
+CREATE TABLE IF NOT EXISTS form_workflow_stages (
+  id TEXT PRIMARY KEY,
+  form_id TEXT NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,                      -- e.g. "Secretary Review", "Master Approval"
+  stage_order INTEGER NOT NULL,            -- 1, 2, 3 … defines sequential processing order
+  allowed_roles TEXT NOT NULL DEFAULT '[]', -- JSON array of role names that can act on this stage
+  allowed_groups TEXT NOT NULL DEFAULT '[]',-- JSON array of org_group IDs
+  allowed_users TEXT NOT NULL DEFAULT '[]', -- JSON array of user IDs
+  notify_on_ready INTEGER DEFAULT 0,       -- send email when stage becomes active
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_forms_org_id ON forms(org_id);
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
@@ -182,3 +217,7 @@ CREATE INDEX IF NOT EXISTS idx_custom_domains_domain ON custom_domains(domain);
 CREATE INDEX IF NOT EXISTS idx_custom_domains_org ON custom_domains(org_id);
 CREATE INDEX IF NOT EXISTS idx_option_lists_org_id ON option_lists(org_id);
 CREATE INDEX IF NOT EXISTS idx_responses_draft_token ON form_responses(draft_token);
+CREATE INDEX IF NOT EXISTS idx_org_groups_org ON org_groups(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_group_members_group ON org_group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_org_group_members_user ON org_group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_form_workflow_stages_form ON form_workflow_stages(form_id);
