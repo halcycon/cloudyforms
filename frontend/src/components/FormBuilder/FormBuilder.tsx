@@ -418,6 +418,8 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                   settings={form.settings ?? DEFAULT_SETTINGS}
                   fields={form.fields ?? []}
                   slug={form.slug}
+                  formId={formId ?? form.id}
+                  orgId={form.orgId ?? currentOrg?.id}
                   onChange={(settings) => updateForm({ settings })}
                   onSlugChange={(slug) => updateForm({ slug })}
                 />
@@ -474,6 +476,9 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 field={selectedField}
                 allFields={form.fields ?? []}
                 onChange={(updates) => updateField(selectedField.id, updates)}
+                formId={formId ?? form.id}
+                orgId={form.orgId ?? currentOrg?.id}
+                workflowEnabled={form.settings?.workflowEnabled}
               />
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-center text-gray-400 border-l border-gray-200">

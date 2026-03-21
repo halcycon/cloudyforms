@@ -1,4 +1,4 @@
-export type UserRole = 'owner' | 'admin' | 'editor' | 'viewer';
+export type UserRole = 'owner' | 'admin' | 'editor' | 'creator' | 'viewer';
 export type FormStatus = 'draft' | 'published' | 'closed';
 export type FormAccessType = 'public' | 'unlisted' | 'code' | 'kiosk_only';
 export type FieldType =
@@ -45,6 +45,44 @@ export interface OrgMember {
   orgId: string;
   role: UserRole;
   user: User;
+}
+
+export interface OrgGroup {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string;
+  members?: OrgGroupMember[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrgGroupMember {
+  userId: string;
+  user: User;
+  joinedAt: string;
+}
+
+export interface WorkflowStage {
+  id: string;
+  formId: string;
+  name: string;
+  stageOrder: number;
+  allowedRoles: string[];
+  allowedGroups: string[];
+  allowedUsers: string[];
+  notifyOnReady: boolean;
+}
+
+export interface FieldPermission {
+  /** Roles allowed to edit this field (empty = all roles with form access) */
+  allowedRoles?: string[];
+  /** Group IDs allowed to edit this field */
+  allowedGroups?: string[];
+  /** User IDs allowed to edit this field */
+  allowedUsers?: string[];
+  /** Workflow stage ID when this field becomes editable (null = always editable) */
+  editableAtStage?: string;
 }
 
 export interface FormField {
@@ -119,6 +157,8 @@ export interface FormField {
     /** Minimum number of repetitions required (defaults to 1) */
     minRepetitions?: number;
   };
+  /** Granular permission settings for this field (roles, groups, users, workflow stage) */
+  fieldPermission?: FieldPermission;
 }
 
 export interface FormSettings {
@@ -136,6 +176,8 @@ export interface FormSettings {
   maxResponses?: number;
   expiresAt?: string;
   kioskOnly: boolean;
+  /** Enable multi-level sign-off workflow for this form */
+  workflowEnabled?: boolean;
 }
 
 export interface BrandingConfig {
@@ -159,6 +201,7 @@ export interface Form {
   settings: FormSettings;
   branding: BrandingConfig;
   documentTemplate?: DocumentTemplate | null;
+  workflowStages?: WorkflowStage[];
   createdAt: string;
   updatedAt: string;
   responseCount?: number;
@@ -180,6 +223,8 @@ export interface FormResponse {
   status?: 'draft' | 'submitted' | 'completed';
   /** Unique token for draft/pre-fill access */
   draftToken?: string;
+  /** Current workflow stage ID (null = no workflow or completed) */
+  currentStage?: string;
   /** User ID who last updated this response */
   updatedBy?: string;
   /** Timestamp of last update */

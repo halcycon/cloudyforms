@@ -35,6 +35,7 @@ interface ResponseRow {
   is_spam: number;
   status: string;
   draft_token: string | null;
+  current_stage: string | null;
   updated_by: string | null;
   updated_at: string | null;
   created_at: string;
@@ -51,6 +52,7 @@ function serializeResponse(row: ResponseRow) {
     isSpam: row.is_spam === 1,
     status: row.status ?? "submitted",
     draftToken: row.draft_token,
+    currentStage: row.current_stage,
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
     createdAt: row.created_at,

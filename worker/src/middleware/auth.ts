@@ -128,9 +128,10 @@ export function requireRole(
     }
 
     const roleHierarchy: Record<string, number> = {
-      owner: 4,
-      admin: 3,
-      editor: 2,
+      owner: 5,
+      admin: 4,
+      editor: 3,
+      creator: 2,
       viewer: 1,
     };
 

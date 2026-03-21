@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText, Pencil, Link2, QrCode, Copy, Check, Mail, Share2, Briefcase } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
-import { forms as formsApi, responses as responsesApi, exportData } from '@/lib/api';
+import { forms as formsApi, responses as responsesApi, exportData, workflow as workflowApi } from '@/lib/api';
 import { downloadFile, formatDate, cn } from '@/lib/utils';
-import type { Form, FormResponse } from '@/lib/types';
+import type { Form, FormResponse, WorkflowStage } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +37,7 @@ export default function ResponsesPage() {
   const [shareResponseId, setShareResponseId] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareEmailTo, setShareEmailTo] = useState('');
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
 
   const LIMIT = 20;
 
@@ -66,6 +67,13 @@ export default function ResponsesPage() {
   }, [formId, page, search, showSpam, startDate, endDate]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load workflow stages if workflow is enabled
+  useEffect(() => {
+    if (form?.settings?.workflowEnabled && formId) {
+      workflowApi.listStages(formId).then(setWorkflowStages).catch(() => {});
+    }
+  }, [form?.settings?.workflowEnabled, formId]);
 
   async function handleDeleteSelected() {
     if (selected.size === 0) return;
@@ -311,6 +319,21 @@ export default function ResponsesPage() {
                           <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">Draft</Badge>
                         ) : resp.status === 'completed' ? (
                           <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Completed</Badge>
+                        ) : resp.currentStage && workflowStages.length > 0 ? (
+                          (() => {
+                            const stage = workflowStages.find((s) => s.id === resp.currentStage);
+                            const stageIdx = workflowStages.findIndex((s) => s.id === resp.currentStage);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                                  {stage ? `${stage.name}` : 'In Progress'}
+                                </Badge>
+                                <span className="text-[10px] text-gray-400">
+                                  {stageIdx >= 0 ? `${stageIdx + 1}/${workflowStages.length}` : ''}
+                                </span>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Submitted</Badge>
                         )}
@@ -412,6 +435,40 @@ export default function ResponsesPage() {
                   {expandedResponse.isSpam ? <Badge variant="destructive">Spam</Badge> : <Badge variant="success">OK</Badge>}
                 </div>
               </div>
+
+              {/* Workflow progress */}
+              {workflowStages.length > 0 && (
+                <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-700">Workflow Progress</p>
+                  <div className="flex items-center gap-1">
+                    {workflowStages.map((stage, i) => {
+                      const currentIdx = workflowStages.findIndex((s) => s.id === expandedResponse.currentStage);
+                      const isCompleted = expandedResponse.status === 'completed' || (currentIdx >= 0 && i < currentIdx);
+                      const isCurrent = stage.id === expandedResponse.currentStage;
+                      return (
+                        <div key={stage.id} className="flex items-center gap-1 flex-1">
+                          <div
+                            className={cn(
+                              'flex-1 rounded-full px-2 py-1 text-center text-[10px] font-medium transition-colors',
+                              isCompleted
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : isCurrent
+                                  ? 'bg-purple-100 text-purple-700 border border-purple-300 ring-1 ring-purple-200'
+                                  : 'bg-gray-100 text-gray-400 border border-gray-200',
+                            )}
+                            title={`Stage ${i + 1}: ${stage.name}`}
+                          >
+                            {stage.name}
+                          </div>
+                          {i < workflowStages.length - 1 && (
+                            <div className={cn('w-3 h-0.5', isCompleted ? 'bg-green-300' : 'bg-gray-200')} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <h3 className="font-semibold text-gray-900">Field Responses</h3>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { FormField, OptionList } from '@/lib/types';
-import { optionLists as optionListsApi } from '@/lib/api';
+import type { FormField, OptionList, WorkflowStage, OrgGroup, FieldPermission } from '@/lib/types';
+import { optionLists as optionListsApi, workflow as workflowApi, orgs as orgsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { parseJsonOptions, detectJsonFields, optionsToJson } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -16,15 +16,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase, Shield } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
   allFields: FormField[];
   onChange: (updates: Partial<FormField>) => void;
+  formId?: string;
+  orgId?: string;
+  workflowEnabled?: boolean;
 }
 
-export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
+export function FieldEditor({ field, allFields, onChange, formId, orgId, workflowEnabled }: FieldEditorProps) {
   const [newOptionLabel, setNewOptionLabel] = useState('');
   const [newOptionValue, setNewOptionValue] = useState('');
   const { currentOrg } = useStore();
@@ -35,11 +38,23 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
   const [detectedFields, setDetectedFields] = useState<string[] | null>(null);
   const [labelField, setLabelField] = useState('');
   const [valueField, setValueField] = useState('');
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
+  const [orgGroups, setOrgGroups] = useState<OrgGroup[]>([]);
 
   useEffect(() => {
     if (!currentOrg?.id) return;
     optionListsApi.list(currentOrg.id).then(setAvailableLists).catch(() => {});
   }, [currentOrg?.id]);
+
+  useEffect(() => {
+    const resolvedOrgId = orgId ?? currentOrg?.id;
+    if (formId && workflowEnabled) {
+      workflowApi.listStages(formId).then(setWorkflowStages).catch(() => {});
+    }
+    if (resolvedOrgId) {
+      orgsApi.listGroups(resolvedOrgId).then(setOrgGroups).catch(() => {});
+    }
+  }, [formId, orgId, currentOrg?.id, workflowEnabled]);
 
   function addOption() {
     if (!newOptionLabel.trim()) return;
@@ -259,6 +274,104 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
               onCheckedChange={(v) => onChange({ officeUse: v })}
             />
           </div>
+        )}
+
+        {/* Field Permissions */}
+        {!isLayout && (field.officeUse || workflowEnabled) && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-gray-500" />
+                <Label className="text-sm font-semibold">Field Permissions</Label>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                Control which roles or groups can edit this field.
+              </p>
+
+              {/* Allowed roles */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Allowed Roles</Label>
+                <Select
+                  value={field.fieldPermission?.allowedRoles?.[0] ?? '_all'}
+                  onValueChange={(v) => {
+                    const perm: FieldPermission = { ...field.fieldPermission };
+                    perm.allowedRoles = v === '_all' ? undefined : [v];
+                    onChange({ fieldPermission: perm });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="All roles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_all">All Roles</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="creator">Creator</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Allowed groups */}
+              {orgGroups.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Allowed Groups</Label>
+                  <Select
+                    value={field.fieldPermission?.allowedGroups?.[0] ?? '_all'}
+                    onValueChange={(v) => {
+                      const perm: FieldPermission = { ...field.fieldPermission };
+                      perm.allowedGroups = v === '_all' ? undefined : [v];
+                      onChange({ fieldPermission: perm });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">All Groups</SelectItem>
+                      {orgGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Workflow stage */}
+              {workflowEnabled && workflowStages.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Editable at Stage</Label>
+                  <Select
+                    value={field.fieldPermission?.editableAtStage ?? '_always'}
+                    onValueChange={(v) => {
+                      const perm: FieldPermission = { ...field.fieldPermission };
+                      perm.editableAtStage = v === '_always' ? undefined : v;
+                      onChange({ fieldPermission: perm });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Always editable" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_always">Always Editable</SelectItem>
+                      {workflowStages.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          Stage {s.stageOrder}: {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-gray-400">
+                    This field will only be editable when the response is at this stage.
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Default value for read-only fields */}

@@ -532,6 +532,41 @@ wrangler d1 execute cloudyforms --local --file=src/db/schema.sql
 
 ---
 
+## Upgrading an Existing Database
+
+`schema.sql` uses `CREATE TABLE IF NOT EXISTS`, so re-running it is safe for
+**new** tables — they'll be created without touching existing ones. However,
+**new columns** added to existing tables (e.g. `current_stage` on
+`form_responses`) are inside the original `CREATE TABLE` block and will **not**
+be applied to a database that already has that table.
+
+For this reason, numbered migration files live in
+`worker/src/db/migrations/`. Run them in order after pulling a new version:
+
+```bash
+cd worker
+
+# Remote (production)
+npx wrangler d1 execute cloudyforms --remote --file=src/db/migrations/001_add_workflow_support.sql
+
+# Local (development)
+npx wrangler d1 execute cloudyforms --local  --file=src/db/migrations/001_add_workflow_support.sql
+```
+
+> **Note:** On a fresh install where `schema.sql` was already applied, the
+> `ALTER TABLE` in the migration will produce a harmless "duplicate column name"
+> error. All other statements in the file use `IF NOT EXISTS` and will succeed
+> regardless.
+
+After running all migrations, you can optionally re-run `schema.sql` to ensure
+indexes and any new tables are present:
+
+```bash
+npx wrangler d1 execute cloudyforms --remote --file=src/db/schema.sql
+```
+
+---
+
 ## Licence
 
 MIT – see [LICENSE](LICENSE).

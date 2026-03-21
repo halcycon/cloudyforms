@@ -3,6 +3,8 @@ import type {
   User,
   Organization,
   OrgMember,
+  OrgGroup,
+  OrgGroupMember,
   Form,
   FormField,
   FormSettings,
@@ -13,6 +15,7 @@ import type {
   OptionList,
   Kiosk,
   CustomDomain,
+  WorkflowStage,
 } from './types';
 
 const apiClient = axios.create({
@@ -104,6 +107,27 @@ export const orgs = {
 
   removeMember: (id: string, userId: string) =>
     del<{ message: string }>(`/orgs/${id}/members/${userId}`),
+
+  // User Groups
+  listGroups: (orgId: string) => get<OrgGroup[]>(`/orgs/${orgId}/groups`),
+
+  createGroup: (orgId: string, data: { name: string; description?: string }) =>
+    post<OrgGroup>(`/orgs/${orgId}/groups`, data),
+
+  updateGroup: (orgId: string, groupId: string, data: { name?: string; description?: string }) =>
+    patch<OrgGroup>(`/orgs/${orgId}/groups/${groupId}`, data),
+
+  deleteGroup: (orgId: string, groupId: string) =>
+    del<{ message: string }>(`/orgs/${orgId}/groups/${groupId}`),
+
+  listGroupMembers: (orgId: string, groupId: string) =>
+    get<OrgGroupMember[]>(`/orgs/${orgId}/groups/${groupId}/members`),
+
+  addGroupMember: (orgId: string, groupId: string, userId: string) =>
+    post<OrgGroupMember>(`/orgs/${orgId}/groups/${groupId}/members`, { userId }),
+
+  removeGroupMember: (orgId: string, groupId: string, userId: string) =>
+    del<{ message: string }>(`/orgs/${orgId}/groups/${groupId}/members/${userId}`),
 };
 
 // Forms
@@ -137,6 +161,21 @@ export const forms = {
   getPublic: (slug: string) => get<Form>(`/forms/public/${slug}`),
 
   duplicate: (id: string) => post<Form>(`/forms/${id}/duplicate`),
+};
+
+// Workflow Stages
+export const workflow = {
+  listStages: (formId: string) =>
+    get<WorkflowStage[]>(`/forms/${formId}/workflow`),
+
+  setStages: (formId: string, stages: Omit<WorkflowStage, 'id' | 'formId'>[]) =>
+    post<WorkflowStage[]>(`/forms/${formId}/workflow`, { stages }),
+
+  deleteStages: (formId: string) =>
+    del<{ message: string }>(`/forms/${formId}/workflow`),
+
+  advanceResponse: (responseId: string) =>
+    post<{ currentStage: string | null; status: string }>(`/responses/${responseId}/advance`),
 };
 
 // Responses
