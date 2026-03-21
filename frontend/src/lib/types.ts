@@ -1,4 +1,4 @@
-export type UserRole = 'owner' | 'admin' | 'editor' | 'viewer';
+export type UserRole = 'owner' | 'admin' | 'editor' | 'creator' | 'viewer';
 export type FormStatus = 'draft' | 'published' | 'closed';
 export type FormAccessType = 'public' | 'unlisted' | 'code' | 'kiosk_only';
 export type FieldType =

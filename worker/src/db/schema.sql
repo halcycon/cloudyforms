@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS org_members (
   id TEXT PRIMARY KEY,
   org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL DEFAULT 'viewer', -- owner, admin, editor, viewer
+  role TEXT NOT NULL DEFAULT 'viewer', -- owner, admin, editor, creator, viewer
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE(org_id, user_id)
 );

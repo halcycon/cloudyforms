@@ -34,7 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email'),
-  role: z.enum(['admin', 'editor', 'viewer']),
+  role: z.enum(['admin', 'editor', 'creator', 'viewer']),
 });
 type InviteForm = z.infer<typeof inviteSchema>;
 
@@ -100,7 +100,7 @@ export default function OrgMembersPage() {
     }
   }
 
-  const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+  const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', editor: 'Editor', creator: 'Creator', viewer: 'Viewer' };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
@@ -141,6 +141,7 @@ export default function OrgMembersPage() {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="creator">Creator</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
@@ -191,6 +192,7 @@ export default function OrgMembersPage() {
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="creator">Creator</SelectItem>
                           <SelectItem value="viewer">Viewer</SelectItem>
                         </SelectContent>
                       </Select>

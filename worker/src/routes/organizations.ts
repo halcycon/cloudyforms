@@ -27,11 +27,11 @@ const updateOrgSchema = z.object({
 
 const addMemberSchema = z.object({
   email: z.string().email(),
-  role: z.enum(["owner", "admin", "editor", "viewer"]).default("viewer"),
+  role: z.enum(["owner", "admin", "editor", "creator", "viewer"]).default("viewer"),
 });
 
 const updateMemberSchema = z.object({
-  role: z.enum(["owner", "admin", "editor", "viewer"]),
+  role: z.enum(["owner", "admin", "editor", "creator", "viewer"]),
 });
 
 // List user's organizations
@@ -224,13 +224,15 @@ orgs.get("/:orgId/members", authMiddleware, requireRole("viewer"), async (c) => 
     user_id: string;
     email: string;
     name: string;
+    is_super_admin: number;
+    user_created_at: string;
     role: string;
     created_at: string;
   }
 
   const members = await dbQuery<MemberRow>(
     c.env.DB,
-    `SELECT m.user_id, u.email, u.name, m.role, m.created_at
+    `SELECT m.user_id, u.email, u.name, u.is_super_admin, u.created_at AS user_created_at, m.role, m.created_at
      FROM org_members m
      JOIN users u ON u.id = m.user_id
      WHERE m.org_id = ?
@@ -241,10 +243,16 @@ orgs.get("/:orgId/members", authMiddleware, requireRole("viewer"), async (c) => 
   return c.json(
     members.map((m) => ({
       userId: m.user_id,
-      email: m.email,
-      name: m.name,
+      orgId,
       role: m.role,
       joinedAt: m.created_at,
+      user: {
+        id: m.user_id,
+        email: m.email,
+        name: m.name,
+        isSuperAdmin: m.is_super_admin === 1,
+        createdAt: m.user_created_at,
+      },
     }))
   );
 });
@@ -291,10 +299,16 @@ orgs.post(
     return c.json(
       {
         userId: targetUser.id,
-        email: targetUser.email,
-        name: targetUser.name,
+        orgId,
         role,
         joinedAt: now,
+        user: {
+          id: targetUser.id,
+          email: targetUser.email,
+          name: targetUser.name,
+          isSuperAdmin: false,
+          createdAt: now,
+        },
       },
       201
     );
