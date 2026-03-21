@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText, Pencil, Link2, QrCode, Copy, Check, Mail, Share2, Briefcase } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -141,7 +141,7 @@ export default function ResponsesPage() {
 
   const totalPages = Math.ceil(total / LIMIT);
 
-  const hasOfficeUseFields = form?.fields.some((f) => f.officeUse) ?? false;
+  const hasOfficeUseFields = useMemo(() => form?.fields.some((f) => f.officeUse) ?? false, [form]);
 
   function getShareUrl(responseId: string) {
     return `${window.location.origin}/forms/${formId}/responses/${responseId}/edit`;

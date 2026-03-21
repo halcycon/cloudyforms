@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Share2, QrCode, Copy, Check, Mail } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -62,7 +62,7 @@ export default function ResponseEditPage() {
   }, [formId, responseId, user]);
 
   const shareUrl = `${window.location.origin}/forms/${formId}/responses/${responseId}/edit`;
-  const hasOfficeUseFields = form?.fields.some((f) => f.officeUse) ?? false;
+  const hasOfficeUseFields = useMemo(() => form?.fields.some((f) => f.officeUse) ?? false, [form]);
 
   function handleCopy() {
     navigator.clipboard.writeText(shareUrl);
