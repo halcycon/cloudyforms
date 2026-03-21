@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText, Pencil, Link2 } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Search, ChevronDown, ChevronUp, Filter, FileText, Pencil, Link2, QrCode, Copy, Check, Mail, Share2, Briefcase } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import { forms as formsApi, responses as responsesApi, exportData } from '@/lib/api';
 import { downloadFile, formatDate, cn } from '@/lib/utils';
@@ -33,6 +34,9 @@ export default function ResponsesPage() {
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [shareResponseId, setShareResponseId] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareEmailTo, setShareEmailTo] = useState('');
 
   const LIMIT = 20;
 
@@ -136,6 +140,30 @@ export default function ResponsesPage() {
   const expandedResponse = responsesList.find((r) => r.id === expandedId);
 
   const totalPages = Math.ceil(total / LIMIT);
+
+  const hasOfficeUseFields = form?.fields.some((f) => f.officeUse) ?? false;
+
+  function getShareUrl(responseId: string) {
+    return `${window.location.origin}/forms/${formId}/responses/${responseId}/edit`;
+  }
+
+  function handleShareCopy() {
+    if (!shareResponseId) return;
+    navigator.clipboard.writeText(getShareUrl(shareResponseId));
+    setShareCopied(true);
+    toast.success('Link copied!');
+    setTimeout(() => setShareCopied(false), 2000);
+  }
+
+  function handleShareEmail() {
+    if (!shareEmailTo.trim() || !shareResponseId) return;
+    const subject = encodeURIComponent(`Office approval needed: ${form?.title ?? 'Form'}`);
+    const body = encodeURIComponent(
+      `You have been asked to complete the office-use fields for a form response.\n\nPlease click the following link to review and complete:\n${getShareUrl(shareResponseId)}\n\nYou will need to log in to access this response.\n\nThank you.`
+    );
+    window.open(`mailto:${shareEmailTo}?subject=${subject}&body=${body}`, '_blank');
+    toast.success('Email client opened');
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -296,9 +324,22 @@ export default function ResponsesPage() {
                             <button
                               onClick={() => navigate(`/forms/${formId}/responses/${resp.id}/edit`)}
                               className="text-gray-400 hover:text-primary-600 p-1"
-                              title="Edit in form view"
+                              title={hasOfficeUseFields ? 'Complete office-use fields' : 'Edit in form view'}
                             >
-                              <Pencil className="h-4 w-4" />
+                              {hasOfficeUseFields ? <Briefcase className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                            </button>
+                          )}
+                          {resp.status !== 'draft' && hasOfficeUseFields && (
+                            <button
+                              onClick={() => {
+                                setShareResponseId(resp.id);
+                                setShareCopied(false);
+                                setShareEmailTo('');
+                              }}
+                              className="text-gray-400 hover:text-primary-600 p-1"
+                              title="Share for office approval"
+                            >
+                              <Share2 className="h-4 w-4" />
                             </button>
                           )}
                           <button
@@ -392,6 +433,62 @@ export default function ResponsesPage() {
                   })}
               </div>
 
+              {/* Office-use field actions */}
+              {expandedResponse.status !== 'draft' && hasOfficeUseFields && (
+                <div className="pt-2 border-t border-gray-200 space-y-2">
+                  <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    This form has office-use fields
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setExpandedId(null);
+                        navigate(`/forms/${formId}/responses/${expandedResponse.id}/edit`);
+                      }}
+                    >
+                      <Briefcase className="h-4 w-4 mr-1.5" />
+                      Complete Office Fields
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setExpandedId(null);
+                        setShareResponseId(expandedResponse.id);
+                        setShareCopied(false);
+                        setShareEmailTo('');
+                      }}
+                    >
+                      <Share2 className="h-4 w-4 mr-1.5" />
+                      Share for Approval
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit button for non-office-use forms */}
+              {expandedResponse.status !== 'draft' && !hasOfficeUseFields && (
+                <div className="pt-2 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setExpandedId(null);
+                      navigate(`/forms/${formId}/responses/${expandedResponse.id}/edit`);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Edit Response
+                  </Button>
+                </div>
+              )}
+
               {/* Download PDF button - shown when form has a document template */}
               {form?.documentTemplate?.enabled && (
                 <div className="pt-2 border-t border-gray-200">
@@ -408,6 +505,74 @@ export default function ResponsesPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Share for Office Approval Dialog */}
+      <Dialog open={!!shareResponseId} onOpenChange={(o) => { if (!o) setShareResponseId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Share for Office Approval
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <p className="text-sm text-gray-600">
+              Share this link with other editors or users so they can complete the office-use fields. They will need to be logged in.
+            </p>
+
+            {/* URL */}
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500 uppercase tracking-wide">Share Link</Label>
+              <div className="flex gap-2">
+                <Input value={shareResponseId ? getShareUrl(shareResponseId) : ''} readOnly className="text-sm font-mono" />
+                <Button variant="outline" size="icon" onClick={handleShareCopy}>
+                  {shareCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* QR Code */}
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <QrCode className="h-3.5 w-3.5" /> QR Code
+              </Label>
+              <div className="flex justify-center p-4 bg-white border border-gray-200 rounded-lg">
+                {shareResponseId && (
+                  <QRCodeSVG value={getShareUrl(shareResponseId)} size={180} level="M" />
+                )}
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                <Mail className="h-3.5 w-3.5" /> Send via Email
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="editor@example.com"
+                  value={shareEmailTo}
+                  onChange={(e) => setShareEmailTo(e.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleShareEmail}
+                  disabled={!shareEmailTo.trim()}
+                >
+                  Send
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShareResponseId(null)}>
+                Done
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
