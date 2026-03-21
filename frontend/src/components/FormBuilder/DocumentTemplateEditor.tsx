@@ -83,6 +83,46 @@ export function DocumentTemplateEditor({
     (f) => !['heading', 'paragraph', 'divider'].includes(f.type),
   );
 
+  // Build an expanded list of mappable fields that includes repeatable group
+  // row variants (row 2 … maxRepetitions). Row 1 uses the original field;
+  // row N entries use a synthetic `{id}_row_{N}` id matching the runtime keys
+  // produced by FormRenderer.
+  const mappableFields: { id: string; label: string; baseFieldId: string }[] = [];
+  {
+    const processedGroups = new Set<string>();
+    for (const field of dataFields) {
+      mappableFields.push({ id: field.id, label: field.label, baseFieldId: field.id });
+      if (field.repeatableGroup?.isGroupStart) {
+        const gid = field.repeatableGroup.groupId;
+        if (!processedGroups.has(gid)) {
+          processedGroups.add(gid);
+          const max = field.repeatableGroup.maxRepetitions;
+          // Collect all fields in this group
+          const groupFields = dataFields.filter(
+            (f) => f.repeatableGroup?.groupId === gid,
+          );
+          for (let row = 2; row <= max; row++) {
+            for (const gf of groupFields) {
+              mappableFields.push({
+                id: `${gf.id}_row_${row}`,
+                label: `${gf.label} (Row ${row})`,
+                baseFieldId: gf.id,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Resolve a (possibly row-suffixed) field ID to the base FormField definition. */
+  function findBaseField(fieldId: string): FormField | undefined {
+    const direct = fields.find((f) => f.id === fieldId);
+    if (direct) return direct;
+    const baseId = fieldId.replace(/_row_\d+$/, '');
+    return fields.find((f) => f.id === baseId);
+  }
+
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -270,8 +310,11 @@ export function DocumentTemplateEditor({
     return config.fieldMappings
       .filter((m) => m.page === currentPage)
       .map((mapping) => {
-        const field = fields.find((f) => f.id === mapping.fieldId);
-        if (!field) return null;
+        const baseField = findBaseField(mapping.fieldId);
+        if (!baseField) return null;
+        const displayLabel =
+          mappableFields.find((mf) => mf.id === mapping.fieldId)?.label ??
+          baseField.label;
 
         return (
           <div
@@ -295,10 +338,10 @@ export function DocumentTemplateEditor({
                 selectedMappingId === mapping.fieldId ? null : mapping.fieldId,
               );
             }}
-            title={`${field.label} (click to select, then click PDF to reposition)`}
+            title={`${displayLabel} (click to select, then click PDF to reposition)`}
           >
             <GripVertical className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{field.label}</span>
+            <span className="truncate">{displayLabel}</span>
           </div>
         );
       });
@@ -540,24 +583,26 @@ export function DocumentTemplateEditor({
                           Map form fields to PDF positions:
                         </p>
                         <div className="max-h-40 overflow-y-auto space-y-1">
-                          {dataFields.map((field) => {
+                          {mappableFields.map((mf) => {
                             const mapped = config.fieldMappings.find(
-                              (m) => m.fieldId === field.id,
+                              (m) => m.fieldId === mf.id,
                             );
+                            const isRowVariant = mf.id !== mf.baseFieldId;
                             return (
                               <div
-                                key={field.id}
+                                key={mf.id}
                                 className={cn(
                                   'flex items-center justify-between rounded px-2 py-1.5 text-xs',
                                   mapped
                                     ? 'bg-green-50 border border-green-200'
                                     : 'bg-gray-50 border border-gray-200',
-                                  selectedMappingId === field.id &&
+                                  selectedMappingId === mf.id &&
                                     'ring-2 ring-blue-400',
+                                  isRowVariant && 'ml-3',
                                 )}
                               >
                                 <span className="truncate font-medium text-gray-700">
-                                  {field.label}
+                                  {mf.label}
                                 </span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   {mapped ? (
@@ -569,7 +614,7 @@ export function DocumentTemplateEditor({
                                         variant="ghost"
                                         size="sm"
                                         className="h-5 w-5 p-0 text-gray-400 hover:text-blue-500"
-                                        onClick={() => addFieldMapping(field.id)}
+                                        onClick={() => addFieldMapping(mf.id)}
                                         title="Reposition"
                                       >
                                         <GripVertical className="h-3 w-3" />
@@ -578,7 +623,7 @@ export function DocumentTemplateEditor({
                                         variant="ghost"
                                         size="sm"
                                         className="h-5 w-5 p-0 text-gray-400 hover:text-red-500"
-                                        onClick={() => removeFieldMapping(field.id)}
+                                        onClick={() => removeFieldMapping(mf.id)}
                                         title="Remove"
                                       >
                                         <X className="h-3 w-3" />
@@ -589,7 +634,7 @@ export function DocumentTemplateEditor({
                                       variant="ghost"
                                       size="sm"
                                       className="h-5 px-1 text-xs text-primary-600 hover:text-primary-700"
-                                      onClick={() => addFieldMapping(field.id)}
+                                      onClick={() => addFieldMapping(mf.id)}
                                     >
                                       <Plus className="h-3 w-3 mr-0.5" />
                                       Place
@@ -668,9 +713,9 @@ export function DocumentTemplateEditor({
                                       }}
                                     >
                                       <option value="">Map to field…</option>
-                                      {dataFields.map((f) => (
-                                        <option key={f.id} value={f.id} title={f.label}>
-                                          {f.label}
+                                      {mappableFields.map((mf) => (
+                                        <option key={mf.id} value={mf.id} title={mf.label}>
+                                          {mf.label}
                                         </option>
                                       ))}
                                     </select>
@@ -698,7 +743,7 @@ export function DocumentTemplateEditor({
                           mapping={config.fieldMappings.find(
                             (m) => m.fieldId === selectedMappingId,
                           )}
-                          field={fields.find((f) => f.id === selectedMappingId)}
+                          field={findBaseField(selectedMappingId)}
                           onChange={(updates) =>
                             updateFieldMapping(selectedMappingId, updates)
                           }
@@ -727,15 +772,15 @@ export function DocumentTemplateEditor({
                   Available fields (click to insert):
                 </Label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {dataFields.map((field) => (
+                  {mappableFields.map((mf) => (
                     <button
-                      key={field.id}
+                      key={mf.id}
                       type="button"
                       className="inline-flex items-center rounded bg-primary-50 border border-primary-200 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 hover:bg-primary-100 transition-colors"
-                      onClick={() => insertFieldPlaceholder(field.label)}
-                      title={`Insert {{${field.label}}}`}
+                      onClick={() => insertFieldPlaceholder(mf.label)}
+                      title={`Insert {{${mf.label}}}`}
                     >
-                      {field.label}
+                      {mf.label}
                     </button>
                   ))}
                 </div>
