@@ -383,6 +383,23 @@ interface StageRow {
   allowed_users: string;
 }
 
+/** Check if a user can act on a workflow stage based on role, group, or direct assignment. */
+function canUserActOnStage(
+  userId: string,
+  isSuperAdmin: boolean,
+  userRole: string | null,
+  userGroupIds: Set<string>,
+  allowedRoles: string[],
+  allowedGroups: string[],
+  allowedUsers: string[],
+): boolean {
+  if (isSuperAdmin) return true;
+  if (allowedUsers.includes(userId)) return true;
+  if (userRole && allowedRoles.includes(userRole)) return true;
+  if (allowedGroups.some((gId) => userGroupIds.has(gId))) return true;
+  return false;
+}
+
 responses.get("/my-tasks", authMiddleware, async (c) => {
   const user = c.get("user");
 
@@ -462,20 +479,13 @@ responses.get("/my-tasks", authMiddleware, async (c) => {
   // 5. Filter to only tasks the user can act on
   const tasks = [];
   for (const row of taskRows) {
-    const userRole = user.isSuperAdmin ? "owner" : orgRoleMap.get(row.org_id);
-    if (!userRole) continue;
+    const userRole = user.isSuperAdmin ? "owner" : orgRoleMap.get(row.org_id) ?? null;
 
     const allowedRoles: string[] = JSON.parse(row.allowed_roles || "[]");
     const allowedGroups: string[] = JSON.parse(row.allowed_groups || "[]");
     const allowedUsers: string[] = JSON.parse(row.allowed_users || "[]");
 
-    const canAct =
-      user.isSuperAdmin ||
-      allowedUsers.includes(user.userId) ||
-      allowedRoles.includes(userRole) ||
-      allowedGroups.some((gId) => userGroupIds.has(gId));
-
-    if (!canAct) continue;
+    if (!canUserActOnStage(user.userId, user.isSuperAdmin, userRole, userGroupIds, allowedRoles, allowedGroups, allowedUsers)) continue;
 
     tasks.push({
       ...serializeResponse(row),
@@ -592,26 +602,22 @@ responses.post("/:responseId/advance", authMiddleware, async (c) => {
     ? "owner"
     : await getUserOrgRole(c.env.DB, user.userId, row.org_id);
 
-  if (!userRole) return c.json({ error: "Access denied" }, 403);
+  if (!userRole && !user.isSuperAdmin) return c.json({ error: "Access denied" }, 403);
 
   // Check if user can act on this stage
   const allowedRoles: string[] = JSON.parse(currentStage.allowed_roles || "[]");
   const allowedGroups: string[] = JSON.parse(currentStage.allowed_groups || "[]");
   const allowedUsers: string[] = JSON.parse(currentStage.allowed_users || "[]");
 
-  let canAct = user.isSuperAdmin || allowedUsers.includes(user.userId) || allowedRoles.includes(userRole);
+  // Get user's group memberships for the permission check
+  const groupRows = await dbQuery<{ group_id: string }>(
+    c.env.DB,
+    "SELECT group_id FROM org_group_members WHERE user_id = ?",
+    [user.userId]
+  );
+  const userGroupIds = new Set(groupRows.map((g) => g.group_id));
 
-  if (!canAct && allowedGroups.length > 0) {
-    const groupRows = await dbQuery<{ group_id: string }>(
-      c.env.DB,
-      "SELECT group_id FROM org_group_members WHERE user_id = ?",
-      [user.userId]
-    );
-    const userGroupIds = new Set(groupRows.map((g) => g.group_id));
-    canAct = allowedGroups.some((gId) => userGroupIds.has(gId));
-  }
-
-  if (!canAct) {
+  if (!canUserActOnStage(user.userId, user.isSuperAdmin, userRole, userGroupIds, allowedRoles, allowedGroups, allowedUsers)) {
     return c.json({ error: "You do not have permission to advance this stage" }, 403);
   }
 
