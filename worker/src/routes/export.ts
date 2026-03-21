@@ -313,6 +313,10 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
+/** Matches repeatable group row-variant field IDs, e.g. "address_row_2". */
+const ROW_SUFFIX_RE = /_row_\d+$/;
+const ROW_VARIANT_RE = /^(.+)_row_(\d+)$/;
+
 function isTruthyValue(value: string): boolean {
   const lower = value.toLowerCase().trim();
   return ["true", "yes", "1", "on", "checked"].includes(lower);
@@ -502,7 +506,9 @@ async function generatePdfFromTemplate(
     const page = pages[pageIndex];
     const { height } = page.getSize();
     const value = getFieldValue(data, fields, mapping.fieldId);
-    const fieldDef = fields.find((f) => f.id === mapping.fieldId);
+    // For repeatable group row variants (e.g. "address_row_2"), fall back to the base field definition
+    const fieldDef = fields.find((f) => f.id === mapping.fieldId)
+      ?? fields.find((f) => f.id === mapping.fieldId.replace(ROW_SUFFIX_RE, ""));
     const isBoolean = fieldDef?.type === "checkbox";
 
     const fontSize = mapping.fontSize ?? 12;
@@ -613,6 +619,26 @@ async function generatePdfFromMarkdown(
     );
     content = content.replace(
       new RegExp(`\\{\\{\\s*${escapeRegex(field.id)}\\s*\\}\\}`, "gi"),
+      value
+    );
+  }
+
+  // Replace repeatable group row variant placeholders e.g. {{Label (Row 2)}} or {{fieldId_row_2}}
+  for (const key of Object.keys(data)) {
+    const rowMatch = key.match(ROW_VARIANT_RE);
+    if (!rowMatch) continue;
+    const baseId = rowMatch[1];
+    const rowNum = rowMatch[2];
+    const baseField = fields.find((f) => f.id === baseId);
+    const value = getFieldValue(data, fields, key);
+    if (baseField?.label) {
+      content = content.replace(
+        new RegExp(`\\{\\{\\s*${escapeRegex(baseField.label)}\\s*\\(\\s*Row\\s*${rowNum}\\s*\\)\\s*\\}\\}`, "gi"),
+        value
+      );
+    }
+    content = content.replace(
+      new RegExp(`\\{\\{\\s*${escapeRegex(key)}\\s*\\}\\}`, "gi"),
       value
     );
   }
