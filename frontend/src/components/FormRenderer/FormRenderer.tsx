@@ -122,6 +122,8 @@ function buildValidationSchema(
       if (field.validation?.min !== undefined) num = num.min(field.validation.min);
       if (field.validation?.max !== undefined) num = num.max(field.validation.max);
       schema = num;
+    } else if (field.type === 'checkbox' && field.options && field.options.length > 0) {
+      schema = z.array(z.string());
     } else if (field.type === 'checkbox') {
       schema = z.boolean();
     } else if (field.type === 'multiselect') {
@@ -272,7 +274,7 @@ export function FormRenderer({
       if (f.options) {
         const defaultOpt = f.options.find((o) => o.default);
         if (defaultOpt) {
-          if (f.type === 'multiselect') {
+          if (f.type === 'multiselect' || (f.type === 'checkbox' && f.options && f.options.length > 0)) {
             defaults[f.id] = [defaultOpt.value];
           } else {
             defaults[f.id] = defaultOpt.value;

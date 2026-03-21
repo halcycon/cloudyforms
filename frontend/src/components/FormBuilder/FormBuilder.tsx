@@ -62,7 +62,7 @@ function createField(type: FieldType): FormField {
     required: false,
   };
 
-  if (['select', 'multiselect', 'radio'].includes(type)) {
+  if (['select', 'multiselect', 'radio', 'checkbox'].includes(type)) {
     base.options = [
       { label: 'Option 1', value: 'option_1' },
       { label: 'Option 2', value: 'option_2' },
