@@ -86,7 +86,7 @@ export function FieldPreview({ field }: FieldPreviewProps) {
 
       {field.type === 'checkbox' && field.options && field.options.length > 0 && (
         <div className="space-y-1">
-          {(field.options).slice(0, 3).map((opt) => (
+          {field.options.slice(0, 3).map((opt) => (
             <div key={opt.value} className="flex items-center gap-2">
               <div className="h-3.5 w-3.5 rounded-sm border border-gray-300 flex-shrink-0" />
               <span className="text-xs text-gray-500">{opt.label}</span>
