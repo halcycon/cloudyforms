@@ -5,13 +5,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { User, Lock, Save } from 'lucide-react';
+import { User, Lock, Save, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ThemeSelector } from '@/components/ThemeSelector';
+import type { ThemeConfig } from '@/lib/themes';
+import { DEFAULT_THEME } from '@/lib/themes';
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -34,6 +37,8 @@ export default function SettingsPage() {
   const { user, setUser } = useStore();
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [themeLoading, setThemeLoading] = useState(false);
+  const [userTheme, setUserTheme] = useState<ThemeConfig>(user?.theme ?? DEFAULT_THEME);
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -75,6 +80,19 @@ export default function SettingsPage() {
     }
   }
 
+  async function onThemeSave() {
+    setThemeLoading(true);
+    try {
+      const updated = await authApi.updateProfile({ theme: userTheme });
+      setUser(updated);
+      toast.success('Theme updated');
+    } catch {
+      toast.error('Failed to update theme');
+    } finally {
+      setThemeLoading(false);
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -83,6 +101,9 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">
             <User className="h-3.5 w-3.5 mr-1.5" /> Profile
+          </TabsTrigger>
+          <TabsTrigger value="appearance">
+            <Palette className="h-3.5 w-3.5 mr-1.5" /> Appearance
           </TabsTrigger>
           <TabsTrigger value="security">
             <Lock className="h-3.5 w-3.5 mr-1.5" /> Security
@@ -126,6 +147,25 @@ export default function SettingsPage() {
                   <Save className="h-4 w-4" /> Save Profile
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="appearance" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Theme</CardTitle>
+              <CardDescription>Choose your preferred appearance and color scheme</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ThemeSelector
+                value={userTheme}
+                onChange={setUserTheme}
+              />
+              <Separator />
+              <Button onClick={onThemeSave} loading={themeLoading}>
+                <Save className="h-4 w-4" /> Save Theme
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

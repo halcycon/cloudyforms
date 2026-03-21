@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { ThemeSelector } from '@/components/ThemeSelector';
 
 interface BrandingSettingsProps {
   branding: BrandingConfig;
@@ -140,6 +141,16 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
           </Select>
         </div>
       </div>
+
+      {/* Theme */}
+      <Separator />
+      <ThemeSelector
+        label="Form Theme"
+        value={branding.theme}
+        onChange={(theme) => update('theme', theme)}
+        showReset={!!branding.theme}
+        onReset={() => update('theme', undefined)}
+      />
 
       {/* Preview */}
       <Separator />

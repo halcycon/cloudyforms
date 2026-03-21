@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { ThemeSelector } from '@/components/ThemeSelector';
+import type { ThemeConfig } from '@/lib/themes';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,7 @@ export default function OrgSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [orgTheme, setOrgTheme] = useState<ThemeConfig | undefined>(undefined);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(schema),
@@ -49,6 +52,7 @@ export default function OrgSettingsPage() {
     orgsApi.get(orgId)
       .then((data) => {
         setOrg(data);
+        setOrgTheme(data.theme);
         reset({
           name: data.name,
           logoUrl: data.logoUrl ?? '',
@@ -70,6 +74,7 @@ export default function OrgSettingsPage() {
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
         customDomain: data.customDomain || undefined,
+        theme: orgTheme,
       });
       setOrg(updated);
       toast.success('Settings saved');
@@ -150,6 +155,16 @@ export default function OrgSettingsPage() {
                 </div>
               </div>
             </div>
+
+            <Separator />
+
+            <ThemeSelector
+              label="Organization Theme"
+              value={orgTheme}
+              onChange={setOrgTheme}
+              showReset={!!orgTheme}
+              onReset={() => setOrgTheme(undefined)}
+            />
           </CardContent>
         </Card>
 

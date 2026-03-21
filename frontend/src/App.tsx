@@ -4,6 +4,7 @@ import { auth as authApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { Layout } from '@/components/layout/Layout';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 // Pages
 import LoginPage from '@/pages/LoginPage';
@@ -56,8 +57,9 @@ function WithLayout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <AuthLoader>
-      <Routes>
+    <ThemeProvider>
+      <AuthLoader>
+        <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -141,5 +143,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AuthLoader>
+    </ThemeProvider>
   );
 }

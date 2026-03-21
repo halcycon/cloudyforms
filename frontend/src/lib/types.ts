@@ -26,6 +26,8 @@ export interface User {
   email: string;
   name: string;
   isSuperAdmin: boolean;
+  /** User-level theme preference (mode + preset). */
+  theme?: import('./themes').ThemeConfig;
   createdAt: string;
 }
 
@@ -37,6 +39,8 @@ export interface Organization {
   primaryColor: string;
   secondaryColor: string;
   customDomain?: string;
+  /** Organization-level theme (mode + preset). */
+  theme?: import('./themes').ThemeConfig;
   createdAt: string;
 }
 
@@ -186,6 +190,8 @@ export interface BrandingConfig {
   backgroundColor?: string;
   textColor?: string;
   fontFamily?: string;
+  /** Per-form theme (mode + preset). Overrides user / org / system theme. */
+  theme?: import('./themes').ThemeConfig;
 }
 
 export interface Form {

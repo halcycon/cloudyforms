@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   is_super_admin INTEGER DEFAULT 0,
+  theme TEXT,                                -- JSON ThemeConfig {mode, preset}
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   primary_color TEXT DEFAULT '#6366f1',
   secondary_color TEXT DEFAULT '#8b5cf6',
   custom_domain TEXT,
+  theme TEXT,                                -- JSON ThemeConfig {mode, preset}
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
