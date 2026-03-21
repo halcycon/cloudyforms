@@ -322,6 +322,8 @@ export type BooleanDisplayMode = 'text' | 'checkmark' | 'cross';
 
 export interface FieldMapping {
   fieldId: string;
+  /** Unique mapping identifier — allows the same field to be mapped multiple times (e.g. one per option). */
+  mappingId?: string;
   page: number;
   x: number;
   y: number;
@@ -338,6 +340,10 @@ export interface FieldMapping {
   booleanTrueMapping?: { page: number; x: number; y: number };
   /** Separate mapping for the "false" value position (e.g. a cross at a different location) */
   booleanFalseMapping?: { page: number; x: number; y: number };
+  /** For radio/checkbox fields with options: the specific option value this mapping represents */
+  optionValue?: string;
+  /** How to render this option on the PDF: 'text' shows the selected value, 'checkmark' shows ✓, 'cross' shows ✕ */
+  optionRenderMode?: 'text' | 'checkmark' | 'cross';
 }
 
 export interface ComputedFieldMapping {
