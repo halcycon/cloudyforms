@@ -258,12 +258,11 @@ users.put(
     }
 
     if (updates.defaultTheme !== undefined) {
-      const themeValue = updates.defaultTheme ? JSON.stringify(updates.defaultTheme) : "null";
       await dbRun(
         c.env.DB,
         `INSERT INTO platform_settings (key, value, updated_at) VALUES ('default_theme', ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-        [themeValue, now]
+        [updates.defaultTheme ? JSON.stringify(updates.defaultTheme) : null, now]
       );
     }
 

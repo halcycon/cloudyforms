@@ -57,12 +57,10 @@ export function ThemeProvider({ children, systemDefault }: ThemeProviderProps) {
     [systemTheme, currentOrg?.theme, user?.theme],
   );
 
-  // We reference osPrefersDark to force re-evaluation when OS preference changes
-  const resolvedMode = useMemo(() => {
-    // This dependency ensures we re-resolve when OS preference toggles
-    void osPrefersDark;
-    return resolveMode(effectiveTheme.mode);
-  }, [effectiveTheme.mode, osPrefersDark]);
+  const resolvedMode = useMemo(
+    () => resolveMode(effectiveTheme.mode),
+    [effectiveTheme.mode, osPrefersDark],
+  );
 
   // Apply CSS variables + <html> class whenever the resolved theme changes.
   useEffect(() => {

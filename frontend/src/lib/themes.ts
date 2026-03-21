@@ -405,8 +405,8 @@ export function mergeThemeConfigs(
   const result = { ...DEFAULT_THEME };
   for (const cfg of configs) {
     if (!cfg) continue;
-    if (cfg.mode) result.mode = cfg.mode;
-    if (cfg.preset) result.preset = cfg.preset;
+    if (cfg.mode !== undefined) result.mode = cfg.mode;
+    if (cfg.preset !== undefined) result.preset = cfg.preset;
   }
   return result;
 }

@@ -83,7 +83,7 @@ export default function SettingsPage() {
   async function onThemeSave() {
     setThemeLoading(true);
     try {
-      const updated = await authApi.updateProfile({ theme: userTheme } as Partial<import('@/lib/types').User>);
+      const updated = await authApi.updateProfile({ theme: userTheme });
       setUser(updated);
       toast.success('Theme updated');
     } catch {
