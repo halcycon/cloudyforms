@@ -27,6 +27,10 @@ const loginSchema = z.object({
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().optional(),
+  theme: z.object({
+    mode: z.enum(["light", "dark", "system"]),
+    preset: z.enum(["default", "ocean", "sunset", "forest", "rose", "slate"]),
+  }).optional().nullable(),
 });
 
 const changePasswordSchema = z.object({
@@ -179,10 +183,11 @@ auth.get("/me", authMiddleware, async (c) => {
     email: string;
     name: string;
     is_super_admin: number;
+    theme: string | null;
     created_at: string;
   }>(
     c.env.DB,
-    "SELECT id, email, name, is_super_admin, created_at FROM users WHERE id = ?",
+    "SELECT id, email, name, is_super_admin, theme, created_at FROM users WHERE id = ?",
     [authUser.userId]
   );
 
@@ -195,6 +200,7 @@ auth.get("/me", authMiddleware, async (c) => {
     email: user.email,
     name: user.name,
     isSuperAdmin: user.is_super_admin === 1,
+    theme: user.theme ? JSON.parse(user.theme) : undefined,
     createdAt: user.created_at,
   });
 });
@@ -225,6 +231,10 @@ auth.on(["PUT", "PATCH"], "/me", authMiddleware, zValidator("json", updateProfil
     sets.push("email = ?");
     params.push(updates.email.toLowerCase());
   }
+  if (updates.theme !== undefined) {
+    sets.push("theme = ?");
+    params.push(updates.theme ? JSON.stringify(updates.theme) : null);
+  }
 
   params.push(authUser.userId);
 
@@ -239,9 +249,10 @@ auth.on(["PUT", "PATCH"], "/me", authMiddleware, zValidator("json", updateProfil
     email: string;
     name: string;
     is_super_admin: number;
+    theme: string | null;
   }>(
     c.env.DB,
-    "SELECT id, email, name, is_super_admin FROM users WHERE id = ?",
+    "SELECT id, email, name, is_super_admin, theme FROM users WHERE id = ?",
     [authUser.userId]
   );
 
@@ -250,6 +261,7 @@ auth.on(["PUT", "PATCH"], "/me", authMiddleware, zValidator("json", updateProfil
     email: user!.email,
     name: user!.name,
     isSuperAdmin: user!.is_super_admin === 1,
+    theme: user!.theme ? JSON.parse(user!.theme) : undefined,
   });
 });
 

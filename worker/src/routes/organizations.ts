@@ -23,6 +23,10 @@ const updateOrgSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   customDomain: z.string().optional().nullable(),
+  theme: z.object({
+    mode: z.enum(["light", "dark", "system"]),
+    preset: z.enum(["default", "ocean", "sunset", "forest", "rose", "slate"]),
+  }).optional().nullable(),
 });
 
 const addMemberSchema = z.object({
@@ -45,13 +49,14 @@ orgs.get("/", authMiddleware, async (c) => {
     logo_url: string | null;
     primary_color: string;
     secondary_color: string;
+    theme: string | null;
     role: string;
     created_at: string;
   }
 
   const rows = await dbQuery<OrgRow>(
     c.env.DB,
-    `SELECT o.id, o.name, o.slug, o.logo_url, o.primary_color, o.secondary_color, m.role, o.created_at
+    `SELECT o.id, o.name, o.slug, o.logo_url, o.primary_color, o.secondary_color, o.theme, m.role, o.created_at
      FROM organizations o
      JOIN org_members m ON m.org_id = o.id
      WHERE m.user_id = ?
@@ -67,6 +72,7 @@ orgs.get("/", authMiddleware, async (c) => {
       logoUrl: r.logo_url,
       primaryColor: r.primary_color,
       secondaryColor: r.secondary_color,
+      theme: r.theme ? JSON.parse(r.theme) : undefined,
       role: r.role,
       createdAt: r.created_at,
     }))
@@ -139,6 +145,7 @@ orgs.get("/:orgId", authMiddleware, async (c) => {
     primary_color: string;
     secondary_color: string;
     custom_domain: string | null;
+    theme: string | null;
     created_at: string;
     updated_at: string;
   }>(c.env.DB, "SELECT * FROM organizations WHERE id = ?", [orgId]);
@@ -155,6 +162,7 @@ orgs.get("/:orgId", authMiddleware, async (c) => {
     primaryColor: org.primary_color,
     secondaryColor: org.secondary_color,
     customDomain: org.custom_domain,
+    theme: org.theme ? JSON.parse(org.theme) : undefined,
     role: member?.role,
     createdAt: org.created_at,
     updatedAt: org.updated_at,
@@ -179,6 +187,7 @@ orgs.on(["PUT", "PATCH"],
     if (updates.primaryColor !== undefined) { sets.push("primary_color = ?"); params.push(updates.primaryColor); }
     if (updates.secondaryColor !== undefined) { sets.push("secondary_color = ?"); params.push(updates.secondaryColor); }
     if (updates.customDomain !== undefined) { sets.push("custom_domain = ?"); params.push(updates.customDomain); }
+    if (updates.theme !== undefined) { sets.push("theme = ?"); params.push(updates.theme ? JSON.stringify(updates.theme) : null); }
 
     params.push(orgId);
 
@@ -191,7 +200,7 @@ orgs.on(["PUT", "PATCH"],
     const org = await dbQueryFirst<{
       id: string; name: string; slug: string;
       logo_url: string | null; primary_color: string; secondary_color: string;
-      custom_domain: string | null; updated_at: string;
+      custom_domain: string | null; theme: string | null; updated_at: string;
     }>(c.env.DB, "SELECT * FROM organizations WHERE id = ?", [orgId]);
 
     return c.json({
@@ -202,6 +211,7 @@ orgs.on(["PUT", "PATCH"],
       primaryColor: org!.primary_color,
       secondaryColor: org!.secondary_color,
       customDomain: org!.custom_domain,
+      theme: org!.theme ? JSON.parse(org!.theme) : undefined,
       updatedAt: org!.updated_at,
     });
   }

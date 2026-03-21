@@ -212,12 +212,17 @@ users.get("/admin/settings", authMiddleware, async (c) => {
   return c.json({
     signupsEnabled: settings["signups_enabled"] ?? true,
     allowedSignupDomains: settings["allowed_signup_domains"] ?? [],
+    defaultTheme: settings["default_theme"] ?? null,
   });
 });
 
 const updateSettingsSchema = z.object({
   signupsEnabled: z.boolean().optional(),
   allowedSignupDomains: z.array(z.string()).optional(),
+  defaultTheme: z.object({
+    mode: z.enum(["light", "dark", "system"]),
+    preset: z.enum(["default", "ocean", "sunset", "forest", "rose", "slate"]),
+  }).optional().nullable(),
 });
 
 // Update platform settings
@@ -249,6 +254,16 @@ users.put(
         `INSERT INTO platform_settings (key, value, updated_at) VALUES ('allowed_signup_domains', ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
         [JSON.stringify(updates.allowedSignupDomains), now]
+      );
+    }
+
+    if (updates.defaultTheme !== undefined) {
+      const themeValue = updates.defaultTheme ? JSON.stringify(updates.defaultTheme) : "null";
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO platform_settings (key, value, updated_at) VALUES ('default_theme', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [themeValue, now]
       );
     }
 

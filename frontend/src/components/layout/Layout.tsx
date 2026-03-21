@@ -81,16 +81,16 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-gray-900 text-white">
+    <div className="flex h-full flex-col text-white" style={{ backgroundColor: 'rgb(var(--sidebar-bg))' }}>
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 px-4 border-b border-gray-800">
+      <div className="flex h-16 items-center gap-2 px-4" style={{ borderBottom: '1px solid rgb(var(--sidebar-border))' }}>
         <CloudLightning className="h-6 w-6 text-primary-400" />
         <span className="text-lg font-bold">CloudyForms</span>
       </div>
 
       {/* Org switcher */}
       {userOrgs.length > 0 && (
-        <div className="px-3 py-3 border-b border-gray-800">
+        <div className="px-3 py-3" style={{ borderBottom: '1px solid rgb(var(--sidebar-border))' }}>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">
               {currentOrg?.logoUrl ? (
@@ -163,7 +163,7 @@ export function Layout({ children }: LayoutProps) {
       </nav>
 
       {/* User menu */}
-      <div className="border-t border-gray-800 p-3">
+      <div className="p-3" style={{ borderTop: '1px solid rgb(var(--sidebar-border))' }}>
         <DropdownMenu>
           <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">
             <Avatar className="h-7 w-7">
@@ -194,7 +194,7 @@ export function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'rgb(var(--background))' }}>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:flex-shrink-0">
         {sidebar}
@@ -216,7 +216,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <header className="flex h-16 items-center gap-4 border-b border-gray-200 bg-white px-4 lg:hidden">
+        <header className="flex h-16 items-center gap-4 px-4 lg:hidden" style={{ borderBottom: '1px solid rgb(var(--border))', backgroundColor: 'rgb(var(--card))' }}>
           <button
             onClick={() => setSidebarOpen(true)}
             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"

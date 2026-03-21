@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react';
 import { admin } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Building2, FileText, MessageSquare, Globe, UserPlus, X } from 'lucide-react';
+import { Shield, Users, Building2, FileText, MessageSquare, Globe, UserPlus, X, Palette } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { ThemeSelector } from '@/components/ThemeSelector';
+import { useTheme } from '@/components/ThemeProvider';
+import type { ThemeConfig } from '@/lib/themes';
+import { DEFAULT_THEME } from '@/lib/themes';
 import toast from 'react-hot-toast';
 
 interface AdminStats {
@@ -27,6 +31,8 @@ export default function AdminPage() {
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [systemDefaultTheme, setSystemDefaultTheme] = useState<ThemeConfig>(DEFAULT_THEME);
+  const { setSystemTheme } = useTheme();
 
   useEffect(() => {
     if (!user?.isSuperAdmin) {
@@ -41,6 +47,9 @@ export default function AdminPage() {
         setStats(statsData);
         setSignupsEnabled(settings.signupsEnabled);
         setAllowedDomains(settings.allowedSignupDomains);
+        if (settings.defaultTheme) {
+          setSystemDefaultTheme(settings.defaultTheme);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -56,6 +65,19 @@ export default function AdminPage() {
       toast.success('Settings saved');
     } catch {
       toast.error('Failed to save settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function saveDefaultTheme(theme: ThemeConfig) {
+    setSavingSettings(true);
+    try {
+      await admin.updateSettings({ defaultTheme: theme });
+      setSystemTheme(theme);
+      toast.success('Default theme saved');
+    } catch {
+      toast.error('Failed to save theme');
     } finally {
       setSavingSettings(false);
     }
@@ -178,6 +200,32 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* System Default Theme */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-gray-600" />
+            <CardTitle className="text-base">System Default Theme</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Set the default appearance for all users. Users and organizations can override this with their own theme preference.
+          </p>
+          <ThemeSelector
+            value={systemDefaultTheme}
+            onChange={(t) => setSystemDefaultTheme(t)}
+          />
+          <Button
+            size="sm"
+            onClick={() => saveDefaultTheme(systemDefaultTheme)}
+            disabled={savingSettings}
+          >
+            Save Default Theme
+          </Button>
         </CardContent>
       </Card>
 

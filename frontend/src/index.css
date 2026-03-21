@@ -21,6 +21,8 @@
   --input: 226 232 240;
   --ring: 79 70 229;
   --radius: 0.5rem;
+  --sidebar-bg: 17 24 39;
+  --sidebar-border: 31 41 55;
 }
 
 * {
@@ -31,6 +33,8 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
 }
 
 /* Scrollbar styling */
@@ -40,16 +44,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: rgb(var(--muted));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgb(var(--muted-foreground) / 0.4);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgb(var(--muted-foreground) / 0.6);
 }
 
 /* Focus ring */
