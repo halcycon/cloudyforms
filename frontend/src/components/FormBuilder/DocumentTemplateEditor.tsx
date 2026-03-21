@@ -632,7 +632,7 @@ export function DocumentTemplateEditor({
                                     <span className="text-purple-600 text-[10px]">Mapped</span>
                                   ) : (
                                     <select
-                                      className="h-5 text-[10px] rounded border border-gray-300 bg-white px-1"
+                                      className="h-5 max-w-[180px] text-[10px] rounded border border-gray-300 bg-white px-1"
                                       value=""
                                       onChange={(e) => {
                                         if (!e.target.value) return;
@@ -669,7 +669,7 @@ export function DocumentTemplateEditor({
                                     >
                                       <option value="">Map to field…</option>
                                       {dataFields.map((f) => (
-                                        <option key={f.id} value={f.id}>
+                                        <option key={f.id} value={f.id} title={f.label}>
                                           {f.label}
                                         </option>
                                       ))}
