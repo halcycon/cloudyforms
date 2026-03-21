@@ -436,7 +436,7 @@ async function generatePdfFromTemplate(
   pdfBytes: ArrayBuffer,
   template: DocumentTemplate,
   data: Record<string, unknown>,
-  fields: { id: string; label?: string; type?: string }[]
+  fields: { id: string; label?: string; type?: string; options?: { label: string; value: string }[] }[]
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -509,14 +509,56 @@ async function generatePdfFromTemplate(
     // For repeatable group row variants (e.g. "address_row_2"), fall back to the base field definition
     const fieldDef = fields.find((f) => f.id === mapping.fieldId)
       ?? fields.find((f) => f.id === mapping.fieldId.replace(ROW_SUFFIX_RE, ""));
-    const isBoolean = fieldDef?.type === "checkbox";
+    const isBoolean = fieldDef?.type === "checkbox"
+      && !fieldDef.options?.length;
 
     const fontSize = mapping.fontSize ?? 12;
     const color = mapping.fontColor
       ? hexToRgb(mapping.fontColor)
       : { r: 0, g: 0, b: 0 };
 
-    // Handle boolean display modes
+    // Handle per-option rendering for radio/checkbox fields with options
+    if (mapping.optionValue) {
+      const rawVal = data[mapping.fieldId];
+      // Check if the option is selected: array (checkbox) or string (radio)
+      const selected = Array.isArray(rawVal)
+        ? rawVal.includes(mapping.optionValue)
+        : String(rawVal ?? "") === mapping.optionValue;
+
+      const renderMode = mapping.optionRenderMode ?? "checkmark";
+
+      if (renderMode === "checkmark" || renderMode === "cross") {
+        // Only render the symbol if this option is selected
+        if (selected) {
+          const symbol = renderMode === "checkmark" ? "✓" : "✕";
+          page.drawText(symbol, {
+            x: mapping.x,
+            y: height - mapping.y - fontSize,
+            size: fontSize,
+            font,
+            color: rgb(color.r, color.g, color.b),
+          });
+        }
+      } else {
+        // renderMode === "text": render the option label if selected
+        if (selected) {
+          const optLabel = fieldDef?.options?.find(
+            (o) => o.value === mapping.optionValue,
+          )?.label ?? mapping.optionValue;
+          page.drawText(optLabel, {
+            x: mapping.x,
+            y: height - mapping.y - fontSize,
+            size: fontSize,
+            font,
+            color: rgb(color.r, color.g, color.b),
+            maxWidth: mapping.width || undefined,
+          });
+        }
+      }
+      continue;
+    }
+
+    // Handle boolean display modes (simple checkbox without options)
     if (isBoolean && mapping.booleanDisplay && mapping.booleanDisplay !== "text") {
       const isTruthy = isTruthyValue(value);
       const symbol = mapping.booleanDisplay === "checkmark" ? "✓" : "✕";
@@ -816,7 +858,7 @@ exportRouter.get("/response/:responseId/pdf", authMiddleware, async (c) => {
     return c.json({ error: "Document template is not enabled" }, 400);
   }
 
-  const fields = JSON.parse(row.fields) as { id: string; label?: string; type?: string }[];
+  const fields = JSON.parse(row.fields) as { id: string; label?: string; type?: string; options?: { label: string; value: string }[] }[];
   const data = JSON.parse(row.data) as Record<string, unknown>;
 
   let pdfResult: Uint8Array;

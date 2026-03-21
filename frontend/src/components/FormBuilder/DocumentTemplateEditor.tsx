@@ -206,6 +206,16 @@ export function DocumentTemplateEditor({
     }
   }
 
+  /** Return the stable key used to identify a single mapping instance. */
+  function mappingKey(m: FieldMapping): string {
+    return m.mappingId ?? m.fieldId;
+  }
+
+  /** Check whether a field type supports per-option mapping. */
+  function hasOptions(field: FormField | undefined): boolean {
+    return !!field && (field.type === 'radio' || field.type === 'checkbox') && Array.isArray(field.options) && field.options.length > 0;
+  }
+
   function handlePdfClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!pdfContainerRef.current) return;
     // Find the rendered page canvas to get exact coordinates
@@ -222,7 +232,7 @@ export function DocumentTemplateEditor({
     // If there's a selected field to place, use it
     if (selectedMappingId) {
       const mappings = config.fieldMappings.map((m) =>
-        m.fieldId === selectedMappingId && m.page === currentPage
+        mappingKey(m) === selectedMappingId && m.page === currentPage
           ? { ...m, x: Math.max(0, x), y: Math.max(0, y) }
           : m,
       );
@@ -233,17 +243,25 @@ export function DocumentTemplateEditor({
   }
 
   function addFieldMapping(fieldId: string) {
-    // Check if already mapped
-    const existing = config.fieldMappings.find((m) => m.fieldId === fieldId);
-    if (existing) {
-      setSelectedMappingId(fieldId);
-      setCurrentPage(existing.page);
-      toast('Click on the PDF to reposition this field', { icon: '👆' });
-      return;
+    // For radio/checkbox fields with options, always allow adding another mapping
+    const baseField = findBaseField(fieldId);
+    const multiOption = hasOptions(baseField);
+
+    if (!multiOption) {
+      // For non-option fields, check if already mapped (existing behaviour)
+      const existing = config.fieldMappings.find((m) => m.fieldId === fieldId);
+      if (existing) {
+        setSelectedMappingId(mappingKey(existing));
+        setCurrentPage(existing.page);
+        toast('Click on the PDF to reposition this field', { icon: '👆' });
+        return;
+      }
     }
 
+    const newMappingId = `${fieldId}_${Date.now()}`;
     const newMapping: FieldMapping = {
       fieldId,
+      mappingId: newMappingId,
       page: currentPage,
       x: 50,
       y: 50,
@@ -257,21 +275,21 @@ export function DocumentTemplateEditor({
       fieldMappings: [...config.fieldMappings, newMapping],
     });
 
-    setSelectedMappingId(fieldId);
+    setSelectedMappingId(newMappingId);
     toast('Click on the PDF to position this field', { icon: '👆' });
   }
 
-  function removeFieldMapping(fieldId: string) {
+  function removeFieldMapping(key: string) {
     update({
-      fieldMappings: config.fieldMappings.filter((m) => m.fieldId !== fieldId),
+      fieldMappings: config.fieldMappings.filter((m) => mappingKey(m) !== key),
     });
-    if (selectedMappingId === fieldId) setSelectedMappingId(null);
+    if (selectedMappingId === key) setSelectedMappingId(null);
   }
 
-  function updateFieldMapping(fieldId: string, updates: Partial<FieldMapping>) {
+  function updateFieldMapping(key: string, updates: Partial<FieldMapping>) {
     update({
       fieldMappings: config.fieldMappings.map((m) =>
-        m.fieldId === fieldId ? { ...m, ...updates } : m,
+        mappingKey(m) === key ? { ...m, ...updates } : m,
       ),
     });
   }
@@ -315,16 +333,22 @@ export function DocumentTemplateEditor({
       .map((mapping) => {
         const baseField = findBaseField(mapping.fieldId);
         if (!baseField) return null;
-        const displayLabel =
+        const mKey = mappingKey(mapping);
+        let displayLabel =
           mappableFields.find((mf) => mf.id === mapping.fieldId)?.label ??
           baseField.label;
+        // Append option value to label for multi-option mappings
+        if (mapping.optionValue) {
+          const opt = baseField.options?.find((o) => o.value === mapping.optionValue);
+          displayLabel += ` [${opt?.label ?? mapping.optionValue}]`;
+        }
 
         return (
           <div
-            key={mapping.fieldId}
+            key={mKey}
             className={cn(
               'absolute border-2 rounded px-1 text-xs flex items-center gap-1 cursor-pointer select-none',
-              selectedMappingId === mapping.fieldId
+              selectedMappingId === mKey
                 ? 'border-blue-500 bg-blue-100/80 text-blue-800'
                 : 'border-orange-400 bg-orange-100/80 text-orange-800',
             )}
@@ -338,7 +362,7 @@ export function DocumentTemplateEditor({
             onClick={(e) => {
               e.stopPropagation();
               setSelectedMappingId(
-                selectedMappingId === mapping.fieldId ? null : mapping.fieldId,
+                selectedMappingId === mKey ? null : mKey,
               );
             }}
             title={`${displayLabel} (click to select, then click PDF to reposition)`}
@@ -585,65 +609,130 @@ export function DocumentTemplateEditor({
                         <p className="text-xs font-medium text-gray-600">
                           Map form fields to PDF positions:
                         </p>
-                        <div className="max-h-40 overflow-y-auto space-y-1">
+                        <div className="max-h-48 overflow-y-auto space-y-1">
                           {mappableFields.map((mf) => {
-                            const mapped = config.fieldMappings.find(
+                            const fieldMappings = config.fieldMappings.filter(
                               (m) => m.fieldId === mf.id,
                             );
+                            const hasMappings = fieldMappings.length > 0;
+                            const baseField = findBaseField(mf.id);
+                            const multiOption = hasOptions(baseField);
                             const isRowVariant = mf.id !== mf.baseFieldId;
                             return (
-                              <div
-                                key={mf.id}
-                                className={cn(
-                                  'flex items-center justify-between rounded px-2 py-1.5 text-xs',
-                                  mapped
-                                    ? 'bg-green-50 border border-green-200'
-                                    : 'bg-gray-50 border border-gray-200',
-                                  selectedMappingId === mf.id &&
-                                    'ring-2 ring-blue-400',
-                                  isRowVariant && 'ml-3',
-                                )}
-                              >
-                                <span className="truncate font-medium text-gray-700">
-                                  {mf.label}
-                                </span>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {mapped ? (
-                                    <>
-                                      <span className="text-green-600 text-[10px]">
-                                        p{mapped.page}
-                                      </span>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0 text-gray-400 hover:text-blue-500"
-                                        onClick={() => addFieldMapping(mf.id)}
-                                        title="Reposition"
-                                      >
-                                        <GripVertical className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 w-5 p-0 text-gray-400 hover:text-red-500"
-                                        onClick={() => removeFieldMapping(mf.id)}
-                                        title="Remove"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 px-1 text-xs text-primary-600 hover:text-primary-700"
-                                      onClick={() => addFieldMapping(mf.id)}
-                                    >
-                                      <Plus className="h-3 w-3 mr-0.5" />
-                                      Place
-                                    </Button>
+                              <div key={mf.id}>
+                                <div
+                                  className={cn(
+                                    'flex items-center justify-between rounded px-2 py-1.5 text-xs',
+                                    hasMappings
+                                      ? 'bg-green-50 border border-green-200'
+                                      : 'bg-gray-50 border border-gray-200',
+                                    isRowVariant && 'ml-3',
                                   )}
+                                >
+                                  <span className="truncate font-medium text-gray-700">
+                                    {mf.label}
+                                  </span>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {hasMappings && !multiOption ? (
+                                      <>
+                                        <span className="text-green-600 text-[10px]">
+                                          p{fieldMappings[0].page}
+                                        </span>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-gray-400 hover:text-blue-500"
+                                          onClick={() => addFieldMapping(mf.id)}
+                                          title="Reposition"
+                                        >
+                                          <GripVertical className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-gray-400 hover:text-red-500"
+                                          onClick={() => removeFieldMapping(mappingKey(fieldMappings[0]))}
+                                          title="Remove"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 px-1 text-xs text-primary-600 hover:text-primary-700"
+                                        onClick={() => addFieldMapping(mf.id)}
+                                      >
+                                        <Plus className="h-3 w-3 mr-0.5" />
+                                        {multiOption && hasMappings ? 'Add' : 'Place'}
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
+                                {/* Show individual option mappings for multi-option fields */}
+                                {multiOption && fieldMappings.length > 0 && (
+                                  <div className="ml-4 mt-0.5 space-y-0.5">
+                                    {fieldMappings.map((fm) => {
+                                      const fmKey = mappingKey(fm);
+                                      const opt = baseField?.options?.find((o) => o.value === fm.optionValue);
+                                      const optLabel = fm.optionValue
+                                        ? (opt?.label ?? fm.optionValue)
+                                        : 'All options (text)';
+                                      return (
+                                        <div
+                                          key={fmKey}
+                                          className={cn(
+                                            'flex items-center justify-between rounded px-2 py-1 text-[10px]',
+                                            selectedMappingId === fmKey
+                                              ? 'bg-blue-50 border border-blue-300 ring-1 ring-blue-400'
+                                              : 'bg-green-50/50 border border-green-200',
+                                          )}
+                                        >
+                                          <span
+                                            className="truncate text-gray-600 cursor-pointer"
+                                            onClick={() => {
+                                              setSelectedMappingId(fmKey);
+                                              setCurrentPage(fm.page);
+                                            }}
+                                          >
+                                            {optLabel}
+                                            {fm.optionRenderMode && fm.optionRenderMode !== 'text' && (
+                                              <span className="ml-1 text-gray-400">
+                                                ({fm.optionRenderMode === 'checkmark' ? '✓' : '✕'})
+                                              </span>
+                                            )}
+                                          </span>
+                                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                                            <span className="text-green-600">p{fm.page}</span>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-4 w-4 p-0 text-gray-400 hover:text-blue-500"
+                                              onClick={() => {
+                                                setSelectedMappingId(fmKey);
+                                                setCurrentPage(fm.page);
+                                                toast('Click on the PDF to reposition', { icon: '👆' });
+                                              }}
+                                              title="Reposition"
+                                            >
+                                              <GripVertical className="h-2.5 w-2.5" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-4 w-4 p-0 text-gray-400 hover:text-red-500"
+                                              onClick={() => removeFieldMapping(fmKey)}
+                                              title="Remove"
+                                            >
+                                              <X className="h-2.5 w-2.5" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -689,11 +778,12 @@ export function DocumentTemplateEditor({
                                           (m) => m.fieldId === fieldId,
                                         );
                                         if (existing) {
-                                          updateFieldMapping(fieldId, { pdfFieldName });
+                                          updateFieldMapping(mappingKey(existing), { pdfFieldName });
                                         } else {
                                           const pos = detectedFieldPositions.current[pdfFieldName];
                                           const newMapping: FieldMapping = {
                                             fieldId,
+                                            mappingId: `${fieldId}_${Date.now()}`,
                                             page: pos?.page ?? currentPage,
                                             x: pos?.x ?? 50,
                                             y: pos?.y ?? 50,
@@ -741,18 +831,22 @@ export function DocumentTemplateEditor({
                       />
 
                       {/* Selected mapping properties */}
-                      {selectedMappingId && (
-                        <FieldMappingEditor
-                          mapping={config.fieldMappings.find(
-                            (m) => m.fieldId === selectedMappingId,
-                          )}
-                          field={findBaseField(selectedMappingId)}
-                          onChange={(updates) =>
-                            updateFieldMapping(selectedMappingId, updates)
-                          }
-                          detectedPdfFields={detectedPdfFields}
-                        />
-                      )}
+                      {selectedMappingId && (() => {
+                        const selMapping = config.fieldMappings.find(
+                          (m) => mappingKey(m) === selectedMappingId,
+                        );
+                        const selField = selMapping ? findBaseField(selMapping.fieldId) : undefined;
+                        return (
+                          <FieldMappingEditor
+                            mapping={selMapping}
+                            field={selField}
+                            onChange={(updates) =>
+                              updateFieldMapping(selectedMappingId, updates)
+                            }
+                            detectedPdfFields={detectedPdfFields}
+                          />
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -841,12 +935,22 @@ function FieldMappingEditor({
 }) {
   if (!mapping || !field) return null;
 
-  const isBoolean = field.type === 'checkbox';
+  const isBoolean = field.type === 'checkbox' && (!field.options || field.options.length === 0);
+  const isMultiOption =
+    (field.type === 'radio' || field.type === 'checkbox') &&
+    Array.isArray(field.options) &&
+    field.options.length > 0;
 
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 space-y-2">
       <p className="text-xs font-medium text-blue-800">
-        {field.label} — Position Settings
+        {field.label}
+        {mapping.optionValue && (
+          <span className="ml-1 font-normal text-blue-600">
+            [{field.options?.find((o) => o.value === mapping.optionValue)?.label ?? mapping.optionValue}]
+          </span>
+        )}
+        {' '}— Position Settings
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -940,7 +1044,64 @@ function FieldMappingEditor({
         />
       </div>
 
-      {/* Boolean display mode (for checkbox fields) */}
+      {/* Option mapping for radio/checkbox fields with options */}
+      {isMultiOption && (
+        <div className="space-y-2 pt-1 border-t border-blue-200">
+          <div>
+            <Label className="text-[10px] text-blue-600">
+              Option to Render
+            </Label>
+            <p className="text-[9px] text-blue-400">
+              Choose which option value this mapping represents
+            </p>
+            <select
+              className="h-6 w-full text-xs rounded border border-blue-300 bg-white px-1 mt-0.5"
+              value={mapping.optionValue ?? ''}
+              onChange={(e) => {
+                const optVal = e.target.value || undefined;
+                onChange({
+                  optionValue: optVal,
+                  // Default to checkmark when an option is selected
+                  optionRenderMode: optVal ? (mapping.optionRenderMode ?? 'checkmark') : undefined,
+                });
+              }}
+            >
+              <option value="">All options (render as text)</option>
+              {field.options!.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {mapping.optionValue && (
+            <div>
+              <Label className="text-[10px] text-blue-600">
+                Render Mode
+              </Label>
+              <p className="text-[9px] text-blue-400">
+                How to display when this option is selected
+              </p>
+              <select
+                className="h-6 w-full text-xs rounded border border-blue-300 bg-white px-1 mt-0.5"
+                value={mapping.optionRenderMode ?? 'checkmark'}
+                onChange={(e) =>
+                  onChange({
+                    optionRenderMode: e.target.value as FieldMapping['optionRenderMode'],
+                  })
+                }
+              >
+                <option value="text">Text (option label)</option>
+                <option value="checkmark">Checkmark (✓)</option>
+                <option value="cross">Cross (✕)</option>
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Boolean display mode (for simple checkbox fields without options) */}
       {isBoolean && (
         <div className="space-y-2 pt-1 border-t border-blue-200">
           <Label className="text-[10px] text-blue-600">
