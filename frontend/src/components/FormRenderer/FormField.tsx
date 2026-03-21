@@ -244,7 +244,29 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
         </RadioGroup>
       )}
 
-      {field.type === 'checkbox' && (
+      {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+        <div className={cn('space-y-2', isReadOnly && 'pointer-events-none opacity-75')}>
+          {field.options.map((opt) => {
+            const selected = (value as string[] | undefined) ?? [];
+            const checked = selected.includes(opt.value);
+            return (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={checked}
+                  disabled={isReadOnly}
+                  onCheckedChange={(c) => {
+                    if (c) onChange([...selected, opt.value]);
+                    else onChange(selected.filter((v) => v !== opt.value));
+                  }}
+                />
+                <span className="text-sm text-gray-700">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {field.type === 'checkbox' && (!field.options || field.options.length === 0) && (
         <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={Boolean(value)}
