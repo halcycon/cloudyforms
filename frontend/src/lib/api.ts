@@ -16,6 +16,8 @@ import type {
   Kiosk,
   CustomDomain,
   WorkflowStage,
+  WorkflowTask,
+  WorkflowStatusResponse,
 } from './types';
 
 const apiClient = axios.create({
@@ -212,6 +214,14 @@ export const responses = {
   /** Submit a pre-fill draft (public) */
   submitDraft: (token: string, data: Record<string, unknown>, turnstileToken?: string) =>
     post<{ message: string; id: string }>(`/responses/draft/${token}/submit`, { data, turnstileToken }),
+
+  /** Get responses awaiting the current user's action in a workflow */
+  myTasks: () =>
+    get<{ tasks: WorkflowTask[] }>('/responses/my-tasks'),
+
+  /** Get detailed workflow status for a response */
+  workflowStatus: (responseId: string) =>
+    get<WorkflowStatusResponse>(`/responses/${responseId}/workflow-status`),
 };
 
 // Export

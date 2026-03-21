@@ -14,6 +14,7 @@ import {
   Building2,
   Shield,
   CloudLightning,
+  ClipboardList,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { orgs } from '@/lib/api';
@@ -38,6 +39,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
+  { label: 'My Tasks', href: '/my-tasks', icon: <ClipboardList className="h-4 w-4" />, exact: true },
   { label: 'Forms', href: '/forms', icon: <FileText className="h-4 w-4" /> },
   { label: 'Field Groups', href: '/field-groups', icon: <Layers className="h-4 w-4" /> },
   { label: 'Option Lists', href: '/option-lists', icon: <ListOrdered className="h-4 w-4" /> },

@@ -30,6 +30,7 @@ import EmbedFormPage from '@/pages/EmbedFormPage';
 import SettingsPage from '@/pages/SettingsPage';
 import AdminPage from '@/pages/AdminPage';
 import AdminDomainsPage from '@/pages/AdminDomainsPage';
+import MyTasksPage from '@/pages/MyTasksPage';
 
 function AuthLoader({ children }: { children: React.ReactNode }) {
   const { token, user, setUser, logout } = useStore();
@@ -105,6 +106,7 @@ export default function App() {
 
         {/* Protected: with layout */}
         <Route path="/dashboard" element={<WithLayout><DashboardPage /></WithLayout>} />
+        <Route path="/my-tasks" element={<WithLayout><MyTasksPage /></WithLayout>} />
         <Route path="/forms" element={<WithLayout><FormsPage /></WithLayout>} />
         <Route path="/forms/:formId/responses" element={<WithLayout><ResponsesPage /></WithLayout>} />
         <Route path="/orgs" element={<WithLayout><OrganizationsPage /></WithLayout>} />

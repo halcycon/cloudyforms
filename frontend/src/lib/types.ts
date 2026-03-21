@@ -232,6 +232,37 @@ export interface FormResponse {
   createdAt: string;
 }
 
+/** A response that is awaiting the current user's action in a workflow */
+export interface WorkflowTask extends FormResponse {
+  formTitle: string;
+  formSlug: string;
+  stageName: string;
+  stageOrder: number;
+  totalStages: number;
+  allowedRoles: string[];
+  allowedGroups: string[];
+  allowedUsers: string[];
+}
+
+/** Detailed workflow status for a single response */
+export interface WorkflowStatusStage {
+  id: string;
+  name: string;
+  stageOrder: number;
+  allowedRoles: string[];
+  allowedGroups: { id: string; name: string }[];
+  allowedUsers: string[];
+  isCompleted: boolean;
+  isCurrent: boolean;
+}
+
+export interface WorkflowStatusResponse {
+  responseId: string;
+  status: string;
+  currentStage: string | null;
+  stages: WorkflowStatusStage[];
+}
+
 export interface FieldGroup {
   id: string;
   orgId?: string;

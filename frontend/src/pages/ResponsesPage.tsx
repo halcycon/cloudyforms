@@ -323,14 +323,27 @@ export default function ResponsesPage() {
                           (() => {
                             const stage = workflowStages.find((s) => s.id === resp.currentStage);
                             const stageIdx = workflowStages.findIndex((s) => s.id === resp.currentStage);
+                            const waitingFor: string[] = [];
+                            if (stage) {
+                              if (stage.allowedRoles.length > 0) waitingFor.push(...stage.allowedRoles.map((r) => r.charAt(0).toUpperCase() + r.slice(1)));
+                              if (stage.allowedGroups.length > 0) waitingFor.push(`${stage.allowedGroups.length} group${stage.allowedGroups.length > 1 ? 's' : ''}`);
+                              if (stage.allowedUsers.length > 0) waitingFor.push(`${stage.allowedUsers.length} user${stage.allowedUsers.length > 1 ? 's' : ''}`);
+                            }
                             return (
-                              <div className="flex items-center gap-1.5">
-                                <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
-                                  {stage ? `${stage.name}` : 'In Progress'}
-                                </Badge>
-                                <span className="text-[10px] text-gray-400">
-                                  {stageIdx >= 0 ? `${stageIdx + 1}/${workflowStages.length}` : ''}
-                                </span>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                                    {stage ? `${stage.name}` : 'In Progress'}
+                                  </Badge>
+                                  <span className="text-[10px] text-gray-400">
+                                    {stageIdx >= 0 ? `${stageIdx + 1}/${workflowStages.length}` : ''}
+                                  </span>
+                                </div>
+                                {waitingFor.length > 0 && (
+                                  <span className="text-[10px] text-gray-400">
+                                    Waiting: {waitingFor.join(', ')}
+                                  </span>
+                                )}
                               </div>
                             );
                           })()
@@ -467,6 +480,21 @@ export default function ResponsesPage() {
                       );
                     })}
                   </div>
+                  {/* Show who needs to act on current stage */}
+                  {expandedResponse.currentStage && expandedResponse.status !== 'completed' && (() => {
+                    const currentStage = workflowStages.find((s) => s.id === expandedResponse.currentStage);
+                    if (!currentStage) return null;
+                    const waitingParts: string[] = [];
+                    if (currentStage.allowedRoles.length > 0) waitingParts.push(`Roles: ${currentStage.allowedRoles.map((r) => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')}`);
+                    if (currentStage.allowedGroups.length > 0) waitingParts.push(`${currentStage.allowedGroups.length} group${currentStage.allowedGroups.length > 1 ? 's' : ''}`);
+                    if (currentStage.allowedUsers.length > 0) waitingParts.push(`${currentStage.allowedUsers.length} specific user${currentStage.allowedUsers.length > 1 ? 's' : ''}`);
+                    if (waitingParts.length === 0) return null;
+                    return (
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        <span className="font-medium">Waiting for:</span> {waitingParts.join(' · ')}
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
 
