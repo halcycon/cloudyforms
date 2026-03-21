@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase, Shield } from 'lucide-react';
 
 interface FieldEditorProps {
@@ -277,7 +278,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Field Permissions */}
-        {!isLayout && (field.officeUse || workflowEnabled) && (
+        {!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0)) && (
           <>
             <Separator />
             <div className="space-y-3">
@@ -286,58 +287,72 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                 <Label className="text-sm font-semibold">Field Permissions</Label>
               </div>
               <p className="text-[10px] text-gray-400">
-                Control which roles or groups can edit this field.
+                {field.officeUse
+                  ? 'Control which roles or groups can edit this field.'
+                  : 'Control when this field becomes editable.'}
               </p>
 
-              {/* Allowed roles */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Allowed Roles</Label>
-                <Select
-                  value={field.fieldPermission?.allowedRoles?.[0] ?? '_all'}
-                  onValueChange={(v) => {
-                    const perm: FieldPermission = { ...field.fieldPermission };
-                    perm.allowedRoles = v === '_all' ? undefined : [v];
-                    onChange({ fieldPermission: perm });
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="All roles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_all">All Roles</SelectItem>
-                    <SelectItem value="owner">Owner</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="editor">Editor</SelectItem>
-                    <SelectItem value="creator">Creator</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Allowed roles — only for office-use fields */}
+              {field.officeUse && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Allowed Roles</Label>
+                  <p className="text-[10px] text-gray-400">Leave unchecked for all roles.</p>
+                  <div className="space-y-1">
+                    {(['owner', 'admin', 'editor', 'creator', 'viewer'] as const).map((role) => (
+                      <div key={role} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`perm-role-${field.id}-${role}`}
+                          checked={field.fieldPermission?.allowedRoles?.includes(role) ?? false}
+                          onCheckedChange={(checked) => {
+                            const perm: FieldPermission = { ...field.fieldPermission };
+                            const current = perm.allowedRoles ?? [];
+                            if (checked) {
+                              perm.allowedRoles = [...current, role];
+                            } else {
+                              perm.allowedRoles = current.filter((r) => r !== role);
+                            }
+                            if (perm.allowedRoles.length === 0) perm.allowedRoles = undefined;
+                            onChange({ fieldPermission: perm });
+                          }}
+                        />
+                        <Label htmlFor={`perm-role-${field.id}-${role}`} className="text-xs capitalize cursor-pointer">
+                          {role}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-              {/* Allowed groups */}
-              {orgGroups.length > 0 && (
+              {/* Allowed groups — only for office-use fields */}
+              {field.officeUse && orgGroups.length > 0 && (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-500">Allowed Groups</Label>
-                  <Select
-                    value={field.fieldPermission?.allowedGroups?.[0] ?? '_all'}
-                    onValueChange={(v) => {
-                      const perm: FieldPermission = { ...field.fieldPermission };
-                      perm.allowedGroups = v === '_all' ? undefined : [v];
-                      onChange({ fieldPermission: perm });
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="All groups" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_all">All Groups</SelectItem>
-                      {orgGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
+                  <p className="text-[10px] text-gray-400">Leave unchecked for all groups.</p>
+                  <div className="space-y-1">
+                    {orgGroups.map((g) => (
+                      <div key={g.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`perm-group-${field.id}-${g.id}`}
+                          checked={field.fieldPermission?.allowedGroups?.includes(g.id) ?? false}
+                          onCheckedChange={(checked) => {
+                            const perm: FieldPermission = { ...field.fieldPermission };
+                            const current = perm.allowedGroups ?? [];
+                            if (checked) {
+                              perm.allowedGroups = [...current, g.id];
+                            } else {
+                              perm.allowedGroups = current.filter((id) => id !== g.id);
+                            }
+                            if (perm.allowedGroups.length === 0) perm.allowedGroups = undefined;
+                            onChange({ fieldPermission: perm });
+                          }}
+                        />
+                        <Label htmlFor={`perm-group-${field.id}-${g.id}`} className="text-xs cursor-pointer">
                           {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
