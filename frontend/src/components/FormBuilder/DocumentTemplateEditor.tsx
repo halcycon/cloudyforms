@@ -29,6 +29,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.vers
 const A4_WIDTH_POINTS = 595.28;
 const A4_HEIGHT_POINTS = 841.89;
 
+/** Matches repeatable group row-variant field IDs, e.g. "address_row_2". */
+const ROW_SUFFIX_RE = /_row_\d+$/;
+
 interface DocumentTemplateEditorProps {
   template: DocumentTemplate | null;
   fields: FormField[];
@@ -119,7 +122,7 @@ export function DocumentTemplateEditor({
   function findBaseField(fieldId: string): FormField | undefined {
     const direct = fields.find((f) => f.id === fieldId);
     if (direct) return direct;
-    const baseId = fieldId.replace(/_row_\d+$/, '');
+    const baseId = fieldId.replace(ROW_SUFFIX_RE, '');
     return fields.find((f) => f.id === baseId);
   }
 
