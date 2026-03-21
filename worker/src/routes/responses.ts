@@ -13,6 +13,16 @@ import { resolveOptionListReferences, serializeForm, type FormRow as FullFormRow
 
 const responses = new Hono<{ Bindings: Bindings }>();
 
+/** Return the ID of the first workflow stage for a form, or null if none. */
+async function getFirstWorkflowStageId(db: D1Database, formId: string): Promise<string | null> {
+  const row = await dbQueryFirst<{ id: string }>(
+    db,
+    "SELECT id FROM form_workflow_stages WHERE form_id = ? ORDER BY stage_order ASC LIMIT 1",
+    [formId]
+  );
+  return row?.id ?? null;
+}
+
 interface FormRow {
   id: string;
   org_id: string;
@@ -206,15 +216,18 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
     submitterEmail = String(data[settings.receiptEmailField]);
   }
 
+  // If the form has workflow stages, start at the first stage
+  const firstStageId = await getFirstWorkflowStageId(c.env.DB, form.id);
+
   await dbRun(
     c.env.DB,
-    `INSERT INTO form_responses (id, form_id, data, metadata, submitter_email, fingerprint, is_spam, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, 'submitted', ?)`,
-    [id, form.id, JSON.stringify(data), JSON.stringify(metadata), submitterEmail, fingerprint, now]
+    `INSERT INTO form_responses (id, form_id, data, metadata, submitter_email, fingerprint, is_spam, status, current_stage, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 'submitted', ?, ?)`,
+    [id, form.id, JSON.stringify(data), JSON.stringify(metadata), submitterEmail, fingerprint, firstStageId, now]
   );
 
   const responsePayload = { id, formId: form.id, createdAt: now };
-  console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug}`);
+  console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug} stage=${firstStageId ?? 'none'}`);
 
   // Post-submission side effects (fire and forget)
   const fields = JSON.parse(form.fields) as { id: string; label?: string }[];
@@ -599,13 +612,16 @@ responses.post("/draft/:token/submit", zValidator("json", draftSubmitSchema), as
     submitterEmail = String(mergedData[settings.receiptEmailField]);
   }
 
+  // If the form has workflow stages, start at the first stage
+  const firstStageId = await getFirstWorkflowStageId(c.env.DB, row.form_id);
+
   await dbRun(
     c.env.DB,
-    `UPDATE form_responses SET data = ?, metadata = ?, status = 'submitted', submitter_email = ?, fingerprint = ?, updated_at = ? WHERE id = ?`,
-    [JSON.stringify(mergedData), JSON.stringify(metadata), submitterEmail, fingerprint, now, row.id]
+    `UPDATE form_responses SET data = ?, metadata = ?, status = 'submitted', submitter_email = ?, fingerprint = ?, current_stage = ?, updated_at = ? WHERE id = ?`,
+    [JSON.stringify(mergedData), JSON.stringify(metadata), submitterEmail, fingerprint, firstStageId, now, row.id]
   );
 
-  console.log(`[RESPONSES] Draft submitted id=${row.id} token=${token}`);
+  console.log(`[RESPONSES] Draft submitted id=${row.id} token=${token} stage=${firstStageId ?? 'none'}`);
 
   const message = settings.successMessage || "Thank you for your submission!";
   const redirectUrl = settings.redirectUrl;
