@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, FileJson, Star, EyeOff, Lock } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
@@ -240,6 +240,23 @@ export function FieldEditor({ field, allFields, onChange }: FieldEditorProps) {
             <Switch
               checked={field.readOnly ?? false}
               onCheckedChange={(v) => onChange({ readOnly: v })}
+            />
+          </div>
+        )}
+
+        {/* Office use only toggle */}
+        {!isLayout && (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-gray-500" />
+                <Label>Office use only</Label>
+              </div>
+              <p className="text-[10px] text-gray-400">Hidden from public form, only visible to editors</p>
+            </div>
+            <Switch
+              checked={field.officeUse ?? false}
+              onCheckedChange={(v) => onChange({ officeUse: v })}
             />
           </div>
         )}
