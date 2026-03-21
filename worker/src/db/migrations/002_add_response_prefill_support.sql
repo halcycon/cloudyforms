@@ -16,7 +16,11 @@
 --   wrangler d1 execute cloudyforms --local  --file=src/db/migrations/002_add_response_prefill_support.sql
 
 -- 1. Response lifecycle status (draft, submitted, completed).
-ALTER TABLE form_responses ADD COLUMN status TEXT NOT NULL DEFAULT 'submitted';
+--    Added as nullable first; existing rows are back-filled below.
+ALTER TABLE form_responses ADD COLUMN status TEXT DEFAULT 'submitted';
+
+-- Back-fill any existing rows that got NULL (should be none, but safe).
+UPDATE form_responses SET status = 'submitted' WHERE status IS NULL;
 
 -- 2. Unique token used to share a pre-filled draft via a public URL.
 ALTER TABLE form_responses ADD COLUMN draft_token TEXT UNIQUE;
