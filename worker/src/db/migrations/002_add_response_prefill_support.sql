@@ -23,7 +23,9 @@ ALTER TABLE form_responses ADD COLUMN status TEXT DEFAULT 'submitted';
 UPDATE form_responses SET status = 'submitted' WHERE status IS NULL;
 
 -- 2. Unique token used to share a pre-filled draft via a public URL.
-ALTER TABLE form_responses ADD COLUMN draft_token TEXT UNIQUE;
+--    SQLite / D1 does not support inline UNIQUE on ALTER TABLE ADD COLUMN;
+--    uniqueness is enforced by the UNIQUE INDEX created in step 5 below.
+ALTER TABLE form_responses ADD COLUMN draft_token TEXT;
 
 -- 3. User who last updated the response (editor / admin sign-off).
 ALTER TABLE form_responses ADD COLUMN updated_by TEXT REFERENCES users(id);
@@ -32,4 +34,7 @@ ALTER TABLE form_responses ADD COLUMN updated_by TEXT REFERENCES users(id);
 ALTER TABLE form_responses ADD COLUMN updated_at TEXT;
 
 -- 5. Index for quick draft-token lookups.
-CREATE INDEX IF NOT EXISTS idx_responses_draft_token ON form_responses(draft_token);
+--    UNIQUE enforces the one-token-per-response invariant (SQLite supports
+--    UNIQUE INDEX even when the plain UNIQUE column constraint is not
+--    available via ALTER TABLE ADD COLUMN).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_draft_token ON form_responses(draft_token);
