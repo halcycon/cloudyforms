@@ -258,7 +258,7 @@ export function DocumentTemplateEditor({
       }
     }
 
-    const newMappingId = `${fieldId}_${Date.now()}`;
+    const newMappingId = `${fieldId}_${crypto.randomUUID()}`;
     const newMapping: FieldMapping = {
       fieldId,
       mappingId: newMappingId,
@@ -783,7 +783,7 @@ export function DocumentTemplateEditor({
                                           const pos = detectedFieldPositions.current[pdfFieldName];
                                           const newMapping: FieldMapping = {
                                             fieldId,
-                                            mappingId: `${fieldId}_${Date.now()}`,
+                                            mappingId: `${fieldId}_${crypto.randomUUID()}`,
                                             page: pos?.page ?? currentPage,
                                             x: pos?.x ?? 50,
                                             y: pos?.y ?? 50,
@@ -1067,7 +1067,7 @@ function FieldMappingEditor({
               }}
             >
               <option value="">All options (render as text)</option>
-              {field.options!.map((opt) => (
+              {(field.options ?? []).map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
