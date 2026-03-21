@@ -150,12 +150,12 @@ export default function OrgSettingsPage() {
                 </div>
               </div>
             </div>
-
-            <Button type="submit" loading={saving}>
-              <Save className="h-4 w-4" /> Save Settings
-            </Button>
           </CardContent>
         </Card>
+
+        <Button type="submit" loading={saving} className="w-full mt-4">
+          <Save className="h-4 w-4" /> Save Settings
+        </Button>
       </form>
 
       {/* Custom Domains */}

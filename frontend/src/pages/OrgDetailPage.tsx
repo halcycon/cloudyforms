@@ -32,7 +32,16 @@ export default function OrgDetailPage() {
   if (loading) {
     return <div className="p-6"><div className="h-8 w-64 bg-gray-200 animate-pulse rounded" /></div>;
   }
-  if (!org) return null;
+  if (!org) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-sm text-gray-500">Organization not found.</p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/orgs')}>
+          <ArrowLeft className="h-4 w-4" /> Back to Organizations
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
