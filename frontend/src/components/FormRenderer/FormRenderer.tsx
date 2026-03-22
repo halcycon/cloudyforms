@@ -340,16 +340,30 @@ export function FormRenderer({
     }));
   }
 
+  /** Check if a field inherits office-use status from its conditional group's start field */
+  function isEffectivelyOfficeUse(field: FormField): boolean {
+    if (field.officeUse) return true;
+    if (field.conditionalGroup) {
+      const groupStart = form.fields.find(
+        (f) =>
+          f.conditionalGroup?.groupId === field.conditionalGroup!.groupId &&
+          f.conditionalGroup.isGroupStart,
+      );
+      if (groupStart?.officeUse) return true;
+    }
+    return false;
+  }
+
   /** Determine if a field should be editable based on mode and role */
   function isFieldEditable(field: FormField): boolean {
     // In public mode, all visible fields are editable (office-use fields are hidden)
     if (mode === 'public') return !field.readOnly;
     // In prefill mode, editor can edit non-office-use fields
-    if (mode === 'prefill') return !field.officeUse && !field.readOnly;
+    if (mode === 'prefill') return !isEffectivelyOfficeUse(field) && !field.readOnly;
     // In edit mode, office-use fields are always editable.
     // Non-office-use fields are only editable if the user has permission.
     if (mode === 'edit') {
-      if (field.officeUse) return true;
+      if (isEffectivelyOfficeUse(field)) return true;
       return canEditAllFields && !field.readOnly;
     }
     return !field.readOnly;
@@ -357,7 +371,7 @@ export function FormRenderer({
 
   /** Filter fields based on mode — office-use fields are hidden in public mode */
   function shouldIncludeField(field: FormField): boolean {
-    if (mode === 'public' && field.officeUse) return false;
+    if (mode === 'public' && isEffectivelyOfficeUse(field)) return false;
     // In prefill mode for the pre-fill editor, show all fields but office-use ones are disabled
     return true;
   }

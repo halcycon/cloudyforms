@@ -138,6 +138,26 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
   const isLayout = ['heading', 'paragraph', 'divider'].includes(field.type);
   const isHidden = field.type === 'hidden';
 
+  // Check if this field inherits office-use from a conditional group's start field
+  const groupStartField = field.conditionalGroup
+    ? allFields.find(
+        (f) =>
+          f.conditionalGroup?.groupId === field.conditionalGroup!.groupId &&
+          f.conditionalGroup.isGroupStart,
+      )
+    : undefined;
+  const inheritsOfficeUse = !!(
+    field.conditionalGroup &&
+    !field.conditionalGroup.isGroupStart &&
+    groupStartField?.officeUse
+  );
+  // The effective permission source: own fieldPermission or inherited from group-start
+  const effectivePermission = inheritsOfficeUse
+    ? groupStartField?.fieldPermission
+    : field.fieldPermission;
+  // Whether the field should show permissions (own office-use OR inherited)
+  const showFieldPermissions = field.officeUse || inheritsOfficeUse;
+
   return (
     <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
       <div className="p-4 space-y-5">
@@ -278,7 +298,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Field Permissions */}
-        {!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0)) && (
+        {((!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0))) || inheritsOfficeUse) && (
           <>
             <Separator />
             <div className="space-y-3">
@@ -287,23 +307,28 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                 <Label className="text-sm font-semibold">Field Permissions</Label>
               </div>
               <p className="text-[10px] text-gray-400">
-                {field.officeUse
-                  ? 'Control which roles or groups can edit this field.'
-                  : 'Control when this field becomes editable.'}
+                {inheritsOfficeUse
+                  ? 'Permissions inherited from the conditional group start field (office-use).'
+                  : field.officeUse
+                    ? 'Control which roles or groups can edit this field.'
+                    : 'Control when this field becomes editable.'}
               </p>
 
-              {/* Allowed roles — only for office-use fields */}
-              {field.officeUse && (
+              {/* Allowed roles — for office-use fields or inherited */}
+              {showFieldPermissions && (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-500">Allowed Roles</Label>
-                  <p className="text-[10px] text-gray-400">Leave unchecked for all roles.</p>
+                  <p className="text-[10px] text-gray-400">
+                    {inheritsOfficeUse ? 'Inherited from group start field.' : 'Leave unchecked for all roles.'}
+                  </p>
                   <div className="space-y-1">
                     {(['owner', 'admin', 'editor', 'creator', 'viewer'] as const).map((role) => (
                       <div key={role} className="flex items-center gap-2">
                         <Checkbox
                           id={`perm-role-${field.id}-${role}`}
-                          checked={field.fieldPermission?.allowedRoles?.includes(role) ?? false}
-                          onCheckedChange={(checked) => {
+                          checked={effectivePermission?.allowedRoles?.includes(role) ?? false}
+                          disabled={inheritsOfficeUse}
+                          onCheckedChange={inheritsOfficeUse ? undefined : (checked) => {
                             const perm: FieldPermission = { ...field.fieldPermission };
                             const current = perm.allowedRoles ?? [];
                             if (checked) {
@@ -315,7 +340,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                             onChange({ fieldPermission: perm });
                           }}
                         />
-                        <Label htmlFor={`perm-role-${field.id}-${role}`} className="text-xs capitalize cursor-pointer">
+                        <Label htmlFor={`perm-role-${field.id}-${role}`} className={`text-xs capitalize ${inheritsOfficeUse ? 'text-gray-400' : 'cursor-pointer'}`}>
                           {role}
                         </Label>
                       </div>
@@ -324,18 +349,21 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                 </div>
               )}
 
-              {/* Allowed groups — only for office-use fields */}
-              {field.officeUse && orgGroups.length > 0 && (
+              {/* Allowed groups — for office-use fields or inherited */}
+              {showFieldPermissions && orgGroups.length > 0 && (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-500">Allowed Groups</Label>
-                  <p className="text-[10px] text-gray-400">Leave unchecked for all groups.</p>
+                  <p className="text-[10px] text-gray-400">
+                    {inheritsOfficeUse ? 'Inherited from group start field.' : 'Leave unchecked for all groups.'}
+                  </p>
                   <div className="space-y-1">
                     {orgGroups.map((g) => (
                       <div key={g.id} className="flex items-center gap-2">
                         <Checkbox
                           id={`perm-group-${field.id}-${g.id}`}
-                          checked={field.fieldPermission?.allowedGroups?.includes(g.id) ?? false}
-                          onCheckedChange={(checked) => {
+                          checked={effectivePermission?.allowedGroups?.includes(g.id) ?? false}
+                          disabled={inheritsOfficeUse}
+                          onCheckedChange={inheritsOfficeUse ? undefined : (checked) => {
                             const perm: FieldPermission = { ...field.fieldPermission };
                             const current = perm.allowedGroups ?? [];
                             if (checked) {
@@ -347,7 +375,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                             onChange({ fieldPermission: perm });
                           }}
                         />
-                        <Label htmlFor={`perm-group-${field.id}-${g.id}`} className="text-xs cursor-pointer">
+                        <Label htmlFor={`perm-group-${field.id}-${g.id}`} className={`text-xs ${inheritsOfficeUse ? 'text-gray-400' : 'cursor-pointer'}`}>
                           {g.name}
                         </Label>
                       </div>
