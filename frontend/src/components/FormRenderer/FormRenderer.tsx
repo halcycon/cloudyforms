@@ -700,26 +700,38 @@ export function FormRenderer({
               const rowHasDescription = isMultiCol && row.some((f) =>
                 f.description && !['heading', 'paragraph', 'divider'].includes(f.type)
               );
+
+              // Pre-compute group controls for this row so we can render them
+              // full-width below the field columns instead of inside a narrow column
+              let rowGroupControls: { groupId: string; groupDef: { maxRepetitions: number; minRepetitions: number } } | null = null;
+              for (const field of row) {
+                const baseId = field.id.replace(/_row_\d+$/, '');
+                const origField = form.fields.find((f) => f.id === baseId);
+                const gId = origField?.repeatableGroup?.groupId;
+                const gDef = gId ? groups.get(gId) : undefined;
+                if (gDef && gId && !renderedGroupButtons.has(`${gId}:${field.id}`)) {
+                  const lastFieldInGroup = gDef.fields[gDef.fields.length - 1];
+                  const rowMatch = field.id.match(/_row_(\d+)$/);
+                  const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : 1;
+                  const currentRowCount = groupRowCounts[gId] ?? 1;
+                  if (baseId === lastFieldInGroup.id && rowNum === currentRowCount) {
+                    rowGroupControls = { groupId: gId, groupDef: gDef };
+                    renderedGroupButtons.add(`${gId}:${field.id}`);
+                  }
+                }
+              }
+
+              const rowKey = row.map((f) => f.id).join('+');
+
               return (
-                <div key={row.map((f) => f.id).join('+')} className={isMultiCol ? 'flex flex-wrap gap-x-4 gap-y-6' : undefined}>
+                <div key={rowKey}>
+                  <div className={isMultiCol ? 'flex flex-wrap gap-x-4 gap-y-6' : undefined}>
                   {row.map((field) => {
                     const idx = expandedFields.indexOf(field);
                     const baseId = field.id.replace(/_row_\d+$/, '');
                     const origField = form.fields.find((f) => f.id === baseId);
                     const groupId = origField?.repeatableGroup?.groupId;
                     const groupDef = groupId ? groups.get(groupId) : undefined;
-
-                    let showGroupControls = false;
-                    if (groupDef && groupId && !renderedGroupButtons.has(`${groupId}:${field.id}`)) {
-                      const lastFieldInGroup = groupDef.fields[groupDef.fields.length - 1];
-                      const rowMatch = field.id.match(/_row_(\d+)$/);
-                      const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : 1;
-                      const currentRowCount = groupRowCounts[groupId] ?? 1;
-                      if (baseId === lastFieldInGroup.id && rowNum === currentRowCount) {
-                        showGroupControls = true;
-                        renderedGroupButtons.add(`${groupId}:${field.id}`);
-                      }
-                    }
 
                     const isNewGroupRow =
                       !!groupDef &&
@@ -736,7 +748,7 @@ export function FormRenderer({
                       : undefined;
 
                     return (
-                      <div key={field.id} style={widthStyle}>
+                      <div key={field.id} style={widthStyle} className={isMultiCol ? 'flex flex-col' : undefined}>
                         {isNewGroupRow && (
                           <hr className="border-gray-200 mb-4" />
                         )}
@@ -746,41 +758,43 @@ export function FormRenderer({
                           onChange={(val) => setFieldValue(field.id, val)}
                           error={errors[field.id]}
                           reserveDescriptionSpace={rowHasDescription}
+                          multiColumn={isMultiCol}
                         />
-                        {showGroupControls && groupId && groupDef && (
-                          <div className="flex items-center gap-2 mt-3">
-                            {(groupRowCounts[groupId] ?? 1) < groupDef.maxRepetitions && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="text-xs"
-                                onClick={() => addGroupRow(groupId, groupDef.maxRepetitions)}
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add more
-                              </Button>
-                            )}
-                            {(groupRowCounts[groupId] ?? 1) > groupDef.minRepetitions && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="text-xs text-red-500 hover:text-red-600"
-                                onClick={() => removeGroupRow(groupId, groupDef.minRepetitions)}
-                              >
-                                <Minus className="h-3 w-3 mr-1" />
-                                Remove last
-                              </Button>
-                            )}
-                            <span className="text-xs text-gray-400">
-                              {groupRowCounts[groupId] ?? 1} / {groupDef.maxRepetitions}
-                            </span>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
+                  </div>
+                  {rowGroupControls && (
+                    <div className="flex items-center gap-2 mt-3">
+                      {(groupRowCounts[rowGroupControls.groupId] ?? 1) < rowGroupControls.groupDef.maxRepetitions && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => addGroupRow(rowGroupControls!.groupId, rowGroupControls!.groupDef.maxRepetitions)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add more
+                        </Button>
+                      )}
+                      {(groupRowCounts[rowGroupControls.groupId] ?? 1) > rowGroupControls.groupDef.minRepetitions && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs text-red-500 hover:text-red-600"
+                          onClick={() => removeGroupRow(rowGroupControls!.groupId, rowGroupControls!.groupDef.minRepetitions)}
+                        >
+                          <Minus className="h-3 w-3 mr-1" />
+                          Remove last
+                        </Button>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {groupRowCounts[rowGroupControls.groupId] ?? 1} / {rowGroupControls.groupDef.maxRepetitions}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             });
