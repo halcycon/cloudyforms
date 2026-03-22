@@ -158,7 +158,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
   // Whether the field should show permissions (own office-use OR inherited)
   const showFieldPermissions = field.officeUse || inheritsOfficeUse;
   // Whether the permissions section should be visible at all
-  const showPermissionsSection = inheritsOfficeUse || (!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0)));
+  const showPermissionsSection = inheritsOfficeUse || field.officeUse || (!isLayout && workflowEnabled && workflowStages.length > 0);
 
   return (
     <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
@@ -283,21 +283,19 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Office use only toggle */}
-        {!isLayout && (
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <Briefcase className="h-3.5 w-3.5 text-gray-500" />
-                <Label>Office use only</Label>
-              </div>
-              <p className="text-[10px] text-gray-400">Hidden from public form, only visible to editors</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <Briefcase className="h-3.5 w-3.5 text-gray-500" />
+              <Label>Office use only</Label>
             </div>
-            <Switch
-              checked={field.officeUse ?? false}
-              onCheckedChange={(v) => onChange({ officeUse: v })}
-            />
+            <p className="text-[10px] text-gray-400">Hidden from public form, only visible to editors</p>
           </div>
-        )}
+          <Switch
+            checked={field.officeUse ?? false}
+            onCheckedChange={(v) => onChange({ officeUse: v })}
+          />
+        </div>
 
         {/* Field Permissions */}
         {showPermissionsSection && (
