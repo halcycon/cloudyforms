@@ -223,14 +223,13 @@ function shouldShowField(
   return true;
 }
 
-/** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
-function evaluateFormula(
+/** Replace {{Label}} placeholders in a formula with their field values. */
+function substituteFieldPlaceholders(
   formula: string,
   allFields: FormField[],
   formValues: Record<string, unknown>,
 ): string {
-  // Replace {{Label}} placeholders with field values
-  const substituted = formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
+  return formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
     const trimmed = label.trim().toLowerCase();
     const field = allFields.find(
       (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
@@ -239,8 +238,15 @@ function evaluateFormula(
     const val = formValues[field.id];
     return val != null ? String(val) : '';
   });
+}
 
-  return substituted;
+/** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
+function evaluateFormula(
+  formula: string,
+  allFields: FormField[],
+  formValues: Record<string, unknown>,
+): string {
+  return substituteFieldPlaceholders(formula, allFields, formValues);
 }
 
 const MONTH_NAMES = [
@@ -250,6 +256,79 @@ const MONTH_NAMES = [
 const DAY_NAMES = [
   'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
 ];
+
+/**
+ * Safely evaluate an arithmetic expression containing only numbers and operators.
+ * Supports: +, -, *, /, parentheses, decimal points.
+ * Returns NaN if the expression is invalid or contains non-arithmetic content.
+ */
+function safeEvaluateArithmetic(expr: string): number {
+  const trimmed = expr.trim();
+  // Strict allowlist: only digits, whitespace, arithmetic operators, decimal points, and parentheses
+  if (!/^[\d\s+\-*/.()]+$/.test(trimmed) || trimmed === '') return NaN;
+  // Reject patterns that could be problematic (e.g. consecutive operators, empty parens)
+  if (/[+\-*/]{2,}/.test(trimmed.replace(/\s/g, '').replace(/\*-/g, '*').replace(/\/-/g, '/').replace(/\+-/g, '+').replace(/--/g, '-'))) return NaN;
+
+  // Tokenize and evaluate using a simple recursive descent parser
+  let pos = 0;
+
+  function skipWhitespace() {
+    while (pos < trimmed.length && trimmed[pos] === ' ') pos++;
+  }
+
+  function parseNumber(): number {
+    skipWhitespace();
+    const start = pos;
+    if (pos < trimmed.length && (trimmed[pos] === '+' || trimmed[pos] === '-')) pos++;
+    while (pos < trimmed.length && (trimmed[pos] >= '0' && trimmed[pos] <= '9' || trimmed[pos] === '.')) pos++;
+    if (pos === start) return NaN;
+    return parseFloat(trimmed.slice(start, pos));
+  }
+
+  function parsePrimary(): number {
+    skipWhitespace();
+    if (pos < trimmed.length && trimmed[pos] === '(') {
+      pos++; // skip '('
+      const val = parseExpression();
+      skipWhitespace();
+      if (pos < trimmed.length && trimmed[pos] === ')') pos++; // skip ')'
+      return val;
+    }
+    return parseNumber();
+  }
+
+  function parseTerm(): number {
+    let left = parsePrimary();
+    skipWhitespace();
+    while (pos < trimmed.length && (trimmed[pos] === '*' || trimmed[pos] === '/')) {
+      const op = trimmed[pos];
+      pos++;
+      const right = parsePrimary();
+      left = op === '*' ? left * right : left / right;
+      skipWhitespace();
+    }
+    return left;
+  }
+
+  function parseExpression(): number {
+    let left = parseTerm();
+    skipWhitespace();
+    while (pos < trimmed.length && (trimmed[pos] === '+' || trimmed[pos] === '-')) {
+      const op = trimmed[pos];
+      pos++;
+      const right = parseTerm();
+      left = op === '+' ? left + right : left - right;
+      skipWhitespace();
+    }
+    return left;
+  }
+
+  const result = parseExpression();
+  skipWhitespace();
+  // If we haven't consumed the entire string, the expression is malformed
+  if (pos !== trimmed.length) return NaN;
+  return result;
+}
 
 /**
  * Evaluate a calculated field formula. Supports:
@@ -263,21 +342,17 @@ function evaluateCalculatedFormula(
   formValues: Record<string, unknown>,
 ): string {
   // Step 1: Replace {{Label}} placeholders with field values
-  const substituted = formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
-    const trimmed = label.trim().toLowerCase();
-    const field = allFields.find(
-      (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
-    );
-    if (!field) return '';
-    const val = formValues[field.id];
-    return val != null ? String(val) : '';
-  });
+  const substituted = substituteFieldPlaceholders(formula, allFields, formValues);
 
-  // Step 2: Apply named functions from innermost to outermost
+  // Step 2: Apply named functions from innermost to outermost.
+  // The [^()]* pattern matches content without parentheses, so the regex naturally
+  // matches the innermost function call first. The while loop repeats until all
+  // nested function calls are resolved (e.g. round(abs(-5)) → round(5) → 5).
   let result = substituted;
   const funcPattern = /\b(round|floor|ceil|abs|min|max|upper|lower|month|year|day)\(([^()]*)\)/i;
-  let safety = 50;
-  while (funcPattern.test(result) && safety-- > 0) {
+  const MAX_ITERATIONS = 50; // Guard against pathological inputs
+  let iterations = MAX_ITERATIONS;
+  while (funcPattern.test(result) && iterations-- > 0) {
     result = result.replace(funcPattern, (_m, fn: string, args: string) => {
       const name = fn.toLowerCase();
       switch (name) {
@@ -312,20 +387,10 @@ function evaluateCalculatedFormula(
     });
   }
 
-  // Step 3: Try to evaluate as a math expression if it looks numeric
-  // Only allow digits, whitespace, operators, decimal points, and parentheses
-  if (/^[\d\s+\-*/.()]+$/.test(result.trim()) && result.trim() !== '') {
-    try {
-      // Use Function constructor for safe arithmetic evaluation
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(`"use strict"; return (${result.trim()});`);
-      const val = fn();
-      if (typeof val === 'number' && isFinite(val)) {
-        return String(val);
-      }
-    } catch {
-      // Not a valid expression, return as-is
-    }
+  // Step 3: Try to evaluate as an arithmetic expression using a safe parser
+  const numResult = safeEvaluateArithmetic(result);
+  if (!isNaN(numResult) && isFinite(numResult)) {
+    return String(numResult);
   }
 
   return result;
