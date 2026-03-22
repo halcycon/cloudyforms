@@ -16,9 +16,11 @@ interface FormFieldProps {
   error?: string;
   /** When true, reserve vertical space for the description area even if no description exists */
   reserveDescriptionSpace?: boolean;
+  /** When true, use flex-col layout so inputs align at the bottom in multi-column rows */
+  multiColumn?: boolean;
 }
 
-export function FormFieldRenderer({ field, value, onChange, error, reserveDescriptionSpace }: FormFieldProps) {
+export function FormFieldRenderer({ field, value, onChange, error, reserveDescriptionSpace, multiColumn }: FormFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,6 +84,19 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
     <p className="mt-0.5 mb-1.5 text-xs text-transparent" aria-hidden="true">&nbsp;</p>
   ) : null;
 
+  // Helper: wraps label + description so inputs align at the bottom in multi-column rows
+  const headerEl = multiColumn ? (
+    <div className="flex-grow">
+      {labelEl}
+      {descEl}
+    </div>
+  ) : (
+    <>
+      {labelEl}
+      {descEl}
+    </>
+  );
+
   if (field.type === 'heading') {
     const Tag = `h${field.level ?? 2}` as 'h1' | 'h2' | 'h3';
     const sizeMap = { 1: 'text-2xl', 2: 'text-xl', 3: 'text-lg' };
@@ -104,9 +119,8 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
   if (field.type === 'hidden') {
     if (!field.visibleToUser) return null;
     return (
-      <div className="space-y-1">
-        {labelEl}
-        {descEl}
+      <div className={cn('space-y-1', multiColumn && 'flex flex-col flex-grow')}>
+        {headerEl}
         <div className="flex h-9 w-full items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
           {(value as string) ?? field.defaultValue ?? ''}
         </div>
@@ -117,9 +131,8 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
   // Calculated fields: always read-only display
   if (field.type === 'calculated') {
     return (
-      <div className="space-y-1">
-        {labelEl}
-        {descEl}
+      <div className={cn('space-y-1', multiColumn && 'flex flex-col flex-grow')}>
+        {headerEl}
         <div className="flex h-9 w-full items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
           {(value as string) ?? ''}
         </div>
@@ -130,9 +143,8 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
   const isReadOnly = field.readOnly ?? false;
 
   return (
-    <div className="space-y-1">
-      {labelEl}
-      {descEl}
+    <div className={cn('space-y-1', multiColumn && 'flex flex-col flex-grow')}>
+      {headerEl}
 
       {(field.type === 'text' || field.type === 'email' || field.type === 'phone') && (
         <Input

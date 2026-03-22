@@ -243,21 +243,8 @@ export function DocumentTemplateEditor({
   }
 
   function addFieldMapping(fieldId: string) {
-    // For radio/checkbox fields with options, always allow adding another mapping
-    const baseField = findBaseField(fieldId);
-    const multiOption = hasOptions(baseField);
-
-    if (!multiOption) {
-      // For non-option fields, check if already mapped (existing behaviour)
-      const existing = config.fieldMappings.find((m) => m.fieldId === fieldId);
-      if (existing) {
-        setSelectedMappingId(mappingKey(existing));
-        setCurrentPage(existing.page);
-        toast('Click on the PDF to reposition this field', { icon: '👆' });
-        return;
-      }
-    }
-
+    // Always allow adding another mapping so the same field can appear in
+    // multiple locations / pages on the PDF
     const newMappingId = `${fieldId}_${crypto.randomUUID()}`;
     const newMapping: FieldMapping = {
       fieldId,
@@ -774,32 +761,27 @@ export function DocumentTemplateEditor({
                                       onChange={(e) => {
                                         if (!e.target.value) return;
                                         const fieldId = e.target.value;
-                                        const existing = config.fieldMappings.find(
-                                          (m) => m.fieldId === fieldId,
-                                        );
-                                        if (existing) {
-                                          updateFieldMapping(mappingKey(existing), { pdfFieldName });
-                                        } else {
-                                          const pos = detectedFieldPositions.current[pdfFieldName];
-                                          const newMapping: FieldMapping = {
-                                            fieldId,
-                                            mappingId: `${fieldId}_${crypto.randomUUID()}`,
-                                            page: pos?.page ?? currentPage,
-                                            x: pos?.x ?? 50,
-                                            y: pos?.y ?? 50,
-                                            width: pos?.width ?? 200,
-                                            height: pos?.height ?? 20,
-                                            fontSize: 12,
-                                            fontColor: '#000000',
-                                            pdfFieldName,
-                                          };
-                                          update({
-                                            fieldMappings: [
-                                              ...config.fieldMappings,
-                                              newMapping,
-                                            ],
-                                          });
-                                        }
+                                        // Always create a new mapping so the same form field
+                                        // can be mapped to multiple PDF fields / locations
+                                        const pos = detectedFieldPositions.current[pdfFieldName];
+                                        const newMapping: FieldMapping = {
+                                          fieldId,
+                                          mappingId: `${fieldId}_${crypto.randomUUID()}`,
+                                          page: pos?.page ?? currentPage,
+                                          x: pos?.x ?? 50,
+                                          y: pos?.y ?? 50,
+                                          width: pos?.width ?? 200,
+                                          height: pos?.height ?? 20,
+                                          fontSize: 12,
+                                          fontColor: '#000000',
+                                          pdfFieldName,
+                                        };
+                                        update({
+                                          fieldMappings: [
+                                            ...config.fieldMappings,
+                                            newMapping,
+                                          ],
+                                        });
                                         toast.success(
                                           `Mapped "${pdfFieldName}" to form field`,
                                         );
