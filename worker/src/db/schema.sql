@@ -163,6 +163,18 @@ CREATE TABLE IF NOT EXISTS option_lists (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Organization Static Values (key-value constants shared across all forms in an org)
+CREATE TABLE IF NOT EXISTS org_static_values (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,              -- unique name within org, used in {{static:Key}} placeholders
+  label TEXT NOT NULL,            -- human-readable label
+  value TEXT NOT NULL DEFAULT '', -- the constant value
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(org_id, key)
+);
+
 -- Platform Settings (key-value store for global configuration)
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
@@ -222,4 +234,5 @@ CREATE INDEX IF NOT EXISTS idx_responses_draft_token ON form_responses(draft_tok
 CREATE INDEX IF NOT EXISTS idx_org_groups_org ON org_groups(org_id);
 CREATE INDEX IF NOT EXISTS idx_org_group_members_group ON org_group_members(group_id);
 CREATE INDEX IF NOT EXISTS idx_org_group_members_user ON org_group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_org_static_values_org ON org_static_values(org_id);
 CREATE INDEX IF NOT EXISTS idx_form_workflow_stages_form ON form_workflow_stages(form_id);

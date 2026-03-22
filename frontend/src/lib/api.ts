@@ -18,6 +18,7 @@ import type {
   WorkflowStage,
   WorkflowTask,
   WorkflowStatusResponse,
+  StaticValue,
 } from './types';
 
 const apiClient = axios.create({
@@ -130,6 +131,19 @@ export const orgs = {
 
   removeGroupMember: (orgId: string, groupId: string, userId: string) =>
     del<{ message: string }>(`/orgs/${orgId}/groups/${groupId}/members/${userId}`),
+
+  // Static Values
+  listStaticValues: (orgId: string) =>
+    get<StaticValue[]>(`/orgs/${orgId}/static-values`),
+
+  createStaticValue: (orgId: string, data: { key: string; label: string; value: string }) =>
+    post<StaticValue>(`/orgs/${orgId}/static-values`, data),
+
+  updateStaticValue: (orgId: string, valueId: string, data: { key?: string; label?: string; value?: string }) =>
+    patch<StaticValue>(`/orgs/${orgId}/static-values/${valueId}`, data),
+
+  deleteStaticValue: (orgId: string, valueId: string) =>
+    del<{ message: string }>(`/orgs/${orgId}/static-values/${valueId}`),
 };
 
 // Forms

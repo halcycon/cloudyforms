@@ -331,6 +331,14 @@ forms.get("/public/:formSlug", optionalAuthMiddleware, async (c) => {
   // Resolve option list references: replace optionListId with actual options
   await resolveOptionListReferences(c.env.DB, result.fields);
 
+  // Attach org-level static values so the frontend can use them in formulas
+  const staticRows = await dbQuery<{ key: string; value: string }>(
+    c.env.DB,
+    "SELECT key, value FROM org_static_values WHERE org_id = ?",
+    [form.org_id]
+  );
+  (result as Record<string, unknown>).staticValues = staticRows.map((r) => ({ key: r.key, value: r.value }));
+
   return c.json(result);
 });
 
@@ -428,7 +436,17 @@ forms.get("/:formId", authMiddleware, async (c) => {
     return c.json({ error: "Access denied" }, 403);
   }
 
-  return c.json(serializeForm(form));
+  const result = serializeForm(form);
+
+  // Attach org-level static values for the form builder
+  const staticRows = await dbQuery<{ key: string; value: string }>(
+    c.env.DB,
+    "SELECT key, value FROM org_static_values WHERE org_id = ?",
+    [form.org_id]
+  );
+  (result as Record<string, unknown>).staticValues = staticRows.map((r) => ({ key: r.key, value: r.value }));
+
+  return c.json(result);
 });
 
 // Update form
