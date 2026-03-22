@@ -699,8 +699,19 @@ async function handleUpdateResponse(
 
   // If editor (not admin/owner), restrict to office-use fields only
   if (role === "editor" && body.data) {
-    const formFields = JSON.parse(row.fields) as { id: string; officeUse?: boolean }[];
-    const officeFieldIds = new Set(formFields.filter((f) => f.officeUse).map((f) => f.id));
+    const formFields = JSON.parse(row.fields) as { id: string; officeUse?: boolean; conditionalGroup?: { groupId: string; isGroupStart: boolean } }[];
+    // Build a set of group IDs where the group-start field is office-use
+    const officeUseGroupIds = new Set<string>();
+    for (const f of formFields) {
+      if (f.officeUse && f.conditionalGroup?.isGroupStart) {
+        officeUseGroupIds.add(f.conditionalGroup.groupId);
+      }
+    }
+    const officeFieldIds = new Set(
+      formFields
+        .filter((f) => f.officeUse || (f.conditionalGroup && officeUseGroupIds.has(f.conditionalGroup.groupId)))
+        .map((f) => f.id),
+    );
     const existingData = JSON.parse(row.data) as Record<string, unknown>;
     const mergedData = { ...existingData };
     for (const [key, value] of Object.entries(body.data)) {
