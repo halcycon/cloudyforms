@@ -772,7 +772,7 @@ export function FormRenderer({
                           variant="outline"
                           size="sm"
                           className="text-xs"
-                          onClick={() => addGroupRow(rowGroupControls!.groupId, rowGroupControls!.groupDef.maxRepetitions)}
+                          onClick={() => addGroupRow(rowGroupControls.groupId, rowGroupControls.groupDef.maxRepetitions)}
                         >
                           <Plus className="h-3 w-3 mr-1" />
                           Add more
@@ -784,7 +784,7 @@ export function FormRenderer({
                           variant="outline"
                           size="sm"
                           className="text-xs text-red-500 hover:text-red-600"
-                          onClick={() => removeGroupRow(rowGroupControls!.groupId, rowGroupControls!.groupDef.minRepetitions)}
+                          onClick={() => removeGroupRow(rowGroupControls.groupId, rowGroupControls.groupDef.minRepetitions)}
                         >
                           <Minus className="h-3 w-3 mr-1" />
                           Remove last
