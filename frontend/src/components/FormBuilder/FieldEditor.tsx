@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase, Shield } from 'lucide-react';
+import { Plus, Trash2, FileJson, Star, EyeOff, Lock, Briefcase, Shield, Calculator } from 'lucide-react';
 
 interface FieldEditorProps {
   field: FormField;
@@ -133,10 +133,11 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
   }
 
   const hasOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(field.type);
-  const hasPlaceholder = !['heading', 'paragraph', 'divider', 'rating', 'scale', 'checkbox', 'file', 'signature', 'hidden'].includes(field.type);
+  const hasPlaceholder = !['heading', 'paragraph', 'divider', 'rating', 'scale', 'checkbox', 'file', 'signature', 'hidden', 'calculated'].includes(field.type);
   const hasContent = field.type === 'heading' || field.type === 'paragraph';
   const isLayout = ['heading', 'paragraph', 'divider'].includes(field.type);
   const isHidden = field.type === 'hidden';
+  const isCalculated = field.type === 'calculated';
 
   // Check if this field inherits office-use from a conditional group's start field
   const groupStartField = field.conditionalGroup
@@ -255,7 +256,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Required toggle */}
-        {!isLayout && !isHidden && (
+        {!isLayout && !isHidden && !isCalculated && (
           <div className="flex items-center justify-between">
             <Label>Required</Label>
             <Switch
@@ -266,7 +267,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Read-only toggle */}
-        {!isLayout && !isHidden && (
+        {!isLayout && !isHidden && !isCalculated && (
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5">
@@ -478,6 +479,47 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                   checked={field.visibleToUser ?? false}
                   onCheckedChange={(v) => onChange({ visibleToUser: v })}
                 />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Calculated field settings */}
+        {isCalculated && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Calculator className="h-4 w-4 text-indigo-500" />
+                <Label>Calculated Field Settings</Label>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Formula</Label>
+                <Textarea
+                  value={field.formula ?? ''}
+                  onChange={(e) => onChange({ formula: e.target.value })}
+                  placeholder={'e.g. {{Price}} * {{Quantity}}'}
+                  rows={3}
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-gray-400">
+                  Reference other fields with {'{{Field Label}}'} placeholders.
+                  Supports text concatenation and math operators (+, -, *, /).
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Functions: <code className="bg-gray-100 px-0.5 rounded">round(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">floor(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">ceil(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">abs(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">min(a,b)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">max(a,b)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">upper(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">lower(x)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">month(date)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">year(date)</code>,{' '}
+                  <code className="bg-gray-100 px-0.5 rounded">day(date)</code>
+                </p>
               </div>
             </div>
           </>

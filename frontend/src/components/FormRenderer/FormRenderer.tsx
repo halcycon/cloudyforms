@@ -108,7 +108,7 @@ function buildValidationSchema(
   const expanded = expandFields(fields, groupRowCounts);
 
   for (const field of expanded) {
-    if (['heading', 'paragraph', 'divider', 'hidden'].includes(field.type)) continue;
+    if (['heading', 'paragraph', 'divider', 'hidden', 'calculated'].includes(field.type)) continue;
 
     // Don't validate fields hidden by conditional logic
     if (!shouldShowField(field, formValues, fields)) continue;
@@ -223,8 +223,8 @@ function shouldShowField(
   return true;
 }
 
-/** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
-function evaluateFormula(
+/** Replace {{Label}} placeholders in a formula with their field values. */
+function substituteFieldPlaceholders(
   formula: string,
   allFields: FormField[],
   formValues: Record<string, unknown>,
@@ -238,6 +238,162 @@ function evaluateFormula(
     const val = formValues[field.id];
     return val != null ? String(val) : '';
   });
+}
+
+/** Evaluate a hidden field formula by replacing {{Label}} placeholders with field values. */
+function evaluateFormula(
+  formula: string,
+  allFields: FormField[],
+  formValues: Record<string, unknown>,
+): string {
+  return substituteFieldPlaceholders(formula, allFields, formValues);
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const DAY_NAMES = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+];
+
+/**
+ * Safely evaluate an arithmetic expression containing only numbers and operators.
+ * Supports: +, -, *, /, parentheses, decimal points.
+ * Returns NaN if the expression is invalid or contains non-arithmetic content.
+ */
+function safeEvaluateArithmetic(expr: string): number {
+  const trimmed = expr.trim();
+  // Strict allowlist: only digits, whitespace, arithmetic operators, decimal points, and parentheses
+  if (!/^[\d\s+\-*/.()]+$/.test(trimmed) || trimmed === '') return NaN;
+  // Reject patterns that could be problematic (e.g. consecutive operators, empty parens)
+  if (/[+\-*/]{2,}/.test(trimmed.replace(/\s/g, '').replace(/\*-/g, '*').replace(/\/-/g, '/').replace(/\+-/g, '+').replace(/--/g, '-'))) return NaN;
+
+  // Tokenize and evaluate using a simple recursive descent parser
+  let pos = 0;
+
+  function skipWhitespace() {
+    while (pos < trimmed.length && trimmed[pos] === ' ') pos++;
+  }
+
+  function parseNumber(): number {
+    skipWhitespace();
+    const start = pos;
+    if (pos < trimmed.length && (trimmed[pos] === '+' || trimmed[pos] === '-')) pos++;
+    while (pos < trimmed.length && (trimmed[pos] >= '0' && trimmed[pos] <= '9' || trimmed[pos] === '.')) pos++;
+    if (pos === start) return NaN;
+    return parseFloat(trimmed.slice(start, pos));
+  }
+
+  function parsePrimary(): number {
+    skipWhitespace();
+    if (pos < trimmed.length && trimmed[pos] === '(') {
+      pos++; // skip '('
+      const val = parseExpression();
+      skipWhitespace();
+      if (pos < trimmed.length && trimmed[pos] === ')') pos++; // skip ')'
+      return val;
+    }
+    return parseNumber();
+  }
+
+  function parseTerm(): number {
+    let left = parsePrimary();
+    skipWhitespace();
+    while (pos < trimmed.length && (trimmed[pos] === '*' || trimmed[pos] === '/')) {
+      const op = trimmed[pos];
+      pos++;
+      const right = parsePrimary();
+      left = op === '*' ? left * right : left / right;
+      skipWhitespace();
+    }
+    return left;
+  }
+
+  function parseExpression(): number {
+    let left = parseTerm();
+    skipWhitespace();
+    while (pos < trimmed.length && (trimmed[pos] === '+' || trimmed[pos] === '-')) {
+      const op = trimmed[pos];
+      pos++;
+      const right = parseTerm();
+      left = op === '+' ? left + right : left - right;
+      skipWhitespace();
+    }
+    return left;
+  }
+
+  const result = parseExpression();
+  skipWhitespace();
+  // If we haven't consumed the entire string, the expression is malformed
+  if (pos !== trimmed.length) return NaN;
+  return result;
+}
+
+/**
+ * Evaluate a calculated field formula. Supports:
+ * - {{Field Label}} placeholders (replaced with field values)
+ * - Math operators: + - * / ( )
+ * - Functions: round, floor, ceil, abs, min, max, upper, lower, month, year, day
+ */
+function evaluateCalculatedFormula(
+  formula: string,
+  allFields: FormField[],
+  formValues: Record<string, unknown>,
+): string {
+  // Step 1: Replace {{Label}} placeholders with field values
+  const substituted = substituteFieldPlaceholders(formula, allFields, formValues);
+
+  // Step 2: Apply named functions from innermost to outermost.
+  // The [^()]* pattern matches content without parentheses, so the regex naturally
+  // matches the innermost function call first. The while loop repeats until all
+  // nested function calls are resolved (e.g. round(abs(-5)) → round(5) → 5).
+  let result = substituted;
+  const funcPattern = /\b(round|floor|ceil|abs|min|max|upper|lower|month|year|day)\(([^()]*)\)/i;
+  const MAX_ITERATIONS = 50; // Guard against pathological inputs
+  let iterations = MAX_ITERATIONS;
+  while (funcPattern.test(result) && iterations-- > 0) {
+    result = result.replace(funcPattern, (_m, fn: string, args: string) => {
+      const name = fn.toLowerCase();
+      switch (name) {
+        case 'round': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.round(n)); }
+        case 'floor': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.floor(n)); }
+        case 'ceil': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.ceil(n)); }
+        case 'abs': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.abs(n)); }
+        case 'min': {
+          const parts = args.split(',').map((s) => parseFloat(s.trim()));
+          return parts.some(isNaN) ? '' : String(Math.min(...parts));
+        }
+        case 'max': {
+          const parts = args.split(',').map((s) => parseFloat(s.trim()));
+          return parts.some(isNaN) ? '' : String(Math.max(...parts));
+        }
+        case 'upper': return args.toUpperCase();
+        case 'lower': return args.toLowerCase();
+        case 'month': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : MONTH_NAMES[d.getMonth()];
+        }
+        case 'year': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : String(d.getFullYear());
+        }
+        case 'day': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : DAY_NAMES[d.getDay()];
+        }
+        default: return args;
+      }
+    });
+  }
+
+  // Step 3: Try to evaluate as an arithmetic expression using a safe parser
+  const numResult = safeEvaluateArithmetic(result);
+  if (!isNaN(numResult) && isFinite(numResult)) {
+    return String(numResult);
+  }
+
+  return result;
 }
 
 export function FormRenderer({
@@ -286,7 +442,7 @@ export function FormRenderer({
         defaults[f.id] = f.defaultValue;
       }
       // Initialize read-only fields with defaultValue
-      if (f.readOnly && f.defaultValue != null && f.type !== 'hidden') {
+      if (f.readOnly && f.defaultValue != null && f.type !== 'hidden' && f.type !== 'calculated') {
         defaults[f.id] = f.defaultValue;
       }
     }
@@ -299,13 +455,17 @@ export function FormRenderer({
     }
   }, [form.fields, initialValues]);
 
-  // Recompute hidden formula field values whenever field values change
+  // Recompute hidden and calculated formula field values whenever field values change
   useEffect(() => {
-    const formulaFields = form.fields.filter((f) => f.type === 'hidden' && f.formula);
-    if (formulaFields.length === 0) return;
+    const hiddenFormulaFields = form.fields.filter((f) => f.type === 'hidden' && f.formula);
+    const calculatedFields = form.fields.filter((f) => f.type === 'calculated' && f.formula);
+    if (hiddenFormulaFields.length === 0 && calculatedFields.length === 0) return;
     const updates: Record<string, unknown> = {};
-    for (const f of formulaFields) {
+    for (const f of hiddenFormulaFields) {
       updates[f.id] = evaluateFormula(f.formula!, form.fields, fieldValues);
+    }
+    for (const f of calculatedFields) {
+      updates[f.id] = evaluateCalculatedFormula(f.formula!, form.fields, fieldValues);
     }
     // Only update if computed values actually changed to avoid infinite loops
     setFieldValues((prev) => {

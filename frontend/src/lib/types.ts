@@ -19,7 +19,8 @@ export type FieldType =
   | 'paragraph'
   | 'divider'
   | 'signature'
-  | 'hidden';
+  | 'hidden'
+  | 'calculated';
 
 export interface User {
   id: string;

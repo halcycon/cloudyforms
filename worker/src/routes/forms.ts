@@ -13,7 +13,8 @@ const forms = new Hono<{ Bindings: Bindings }>();
 export type FormFieldType =
   | "text" | "textarea" | "number" | "email" | "phone" | "date"
   | "select" | "multiselect" | "radio" | "checkbox" | "file"
-  | "rating" | "scale" | "heading" | "paragraph" | "divider" | "signature";
+  | "rating" | "scale" | "heading" | "paragraph" | "divider" | "signature"
+  | "hidden" | "calculated";
 
 export interface FormField {
   id: string;
