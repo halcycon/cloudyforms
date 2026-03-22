@@ -234,8 +234,9 @@ function substituteFieldPlaceholders(
     const trimmed = label.trim();
 
     // Handle {{static:Key}} placeholders for org-level static values
-    if (trimmed.toLowerCase().startsWith('static:')) {
-      const staticKey = trimmed.slice(7).trim();
+    const STATIC_PREFIX = 'static:';
+    if (trimmed.toLowerCase().startsWith(STATIC_PREFIX)) {
+      const staticKey = trimmed.slice(STATIC_PREFIX.length).trim();
       const sv = staticValues?.find(
         (s) => s.key.toLowerCase() === staticKey.toLowerCase(),
       );
