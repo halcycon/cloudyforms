@@ -157,6 +157,8 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
     : field.fieldPermission;
   // Whether the field should show permissions (own office-use OR inherited)
   const showFieldPermissions = field.officeUse || inheritsOfficeUse;
+  // Whether the permissions section should be visible at all
+  const showPermissionsSection = inheritsOfficeUse || (!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0)));
 
   return (
     <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
@@ -298,7 +300,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
         )}
 
         {/* Field Permissions */}
-        {((!isLayout && (field.officeUse || (workflowEnabled && workflowStages.length > 0))) || inheritsOfficeUse) && (
+        {showPermissionsSection && (
           <>
             <Separator />
             <div className="space-y-3">
