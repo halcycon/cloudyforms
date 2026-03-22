@@ -834,11 +834,18 @@ responses.get("/draft/:token", async (c) => {
   // Resolve option list references
   await resolveOptionListReferences(c.env.DB, formData.fields);
 
+  // Attach org-level static values
+  const staticRows = await dbQuery<{ key: string; value: string }>(
+    c.env.DB,
+    "SELECT key, value FROM org_static_values WHERE org_id = ?",
+    [formRow.org_id]
+  );
+
   // Remove access code from public response
   const { accessCode: _ac, ...safeFormData } = formData;
 
   return c.json({
-    form: safeFormData,
+    form: { ...safeFormData, staticValues: staticRows.map((r) => ({ key: r.key, value: r.value })) },
     data: JSON.parse(row.data),
     responseId: row.id,
   });

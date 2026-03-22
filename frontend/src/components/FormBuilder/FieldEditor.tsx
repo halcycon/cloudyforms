@@ -466,6 +466,7 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                 />
                 <p className="text-[10px] text-gray-400">
                   Computed from other fields using {'{{Field Label}}'} placeholders.
+                  Use {'{{static:Key}}'} for org-level static values.
                   If set, overrides the default value.
                 </p>
               </div>
@@ -506,6 +507,10 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
                 <p className="text-[10px] text-gray-400">
                   Reference other fields with {'{{Field Label}}'} placeholders.
                   Supports text concatenation and math operators (+, -, *, /).
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Use {'{{static:Key}}'} to reference org-level static values
+                  (e.g. {'{{static:Company Name}}'}).
                 </p>
                 <p className="text-[10px] text-gray-400">
                   Functions: <code className="bg-gray-100 px-0.5 rounded">round(x)</code>,{' '}

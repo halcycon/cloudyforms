@@ -223,16 +223,29 @@ function shouldShowField(
   return true;
 }
 
-/** Replace {{Label}} placeholders in a formula with their field values. */
+/** Replace {{Label}} and {{static:Key}} placeholders in a formula with their values. */
 function substituteFieldPlaceholders(
   formula: string,
   allFields: FormField[],
   formValues: Record<string, unknown>,
+  staticValues?: { key: string; value: string }[],
 ): string {
   return formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
-    const trimmed = label.trim().toLowerCase();
+    const trimmed = label.trim();
+
+    // Handle {{static:Key}} placeholders for org-level static values
+    const STATIC_PREFIX = 'static:';
+    if (trimmed.toLowerCase().startsWith(STATIC_PREFIX)) {
+      const staticKey = trimmed.slice(STATIC_PREFIX.length).trim();
+      const sv = staticValues?.find(
+        (s) => s.key.toLowerCase() === staticKey.toLowerCase(),
+      );
+      return sv?.value ?? '';
+    }
+
+    const lower = trimmed.toLowerCase();
     const field = allFields.find(
-      (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
+      (f) => f.label.toLowerCase() === lower || f.id === lower || (f.name && f.name.toLowerCase() === lower),
     );
     if (!field) return '';
     const val = formValues[field.id];
@@ -245,8 +258,9 @@ function evaluateFormula(
   formula: string,
   allFields: FormField[],
   formValues: Record<string, unknown>,
+  staticValues?: { key: string; value: string }[],
 ): string {
-  return substituteFieldPlaceholders(formula, allFields, formValues);
+  return substituteFieldPlaceholders(formula, allFields, formValues, staticValues);
 }
 
 const MONTH_NAMES = [
@@ -333,6 +347,7 @@ function safeEvaluateArithmetic(expr: string): number {
 /**
  * Evaluate a calculated field formula. Supports:
  * - {{Field Label}} placeholders (replaced with field values)
+ * - {{static:Key}} placeholders (replaced with org-level static values)
  * - Math operators: + - * / ( )
  * - Functions: round, floor, ceil, abs, min, max, upper, lower, month, year, day
  */
@@ -340,9 +355,10 @@ function evaluateCalculatedFormula(
   formula: string,
   allFields: FormField[],
   formValues: Record<string, unknown>,
+  staticValues?: { key: string; value: string }[],
 ): string {
-  // Step 1: Replace {{Label}} placeholders with field values
-  const substituted = substituteFieldPlaceholders(formula, allFields, formValues);
+  // Step 1: Replace {{Label}} and {{static:Key}} placeholders with values
+  const substituted = substituteFieldPlaceholders(formula, allFields, formValues, staticValues);
 
   // Step 2: Apply named functions from innermost to outermost.
   // The [^()]* pattern matches content without parentheses, so the regex naturally
@@ -462,10 +478,10 @@ export function FormRenderer({
     if (hiddenFormulaFields.length === 0 && calculatedFields.length === 0) return;
     const updates: Record<string, unknown> = {};
     for (const f of hiddenFormulaFields) {
-      updates[f.id] = evaluateFormula(f.formula!, form.fields, fieldValues);
+      updates[f.id] = evaluateFormula(f.formula!, form.fields, fieldValues, form.staticValues);
     }
     for (const f of calculatedFields) {
-      updates[f.id] = evaluateCalculatedFormula(f.formula!, form.fields, fieldValues);
+      updates[f.id] = evaluateCalculatedFormula(f.formula!, form.fields, fieldValues, form.staticValues);
     }
     // Only update if computed values actually changed to avoid infinite loops
     setFieldValues((prev) => {
@@ -475,7 +491,7 @@ export function FormRenderer({
       }
       return changed ? { ...prev, ...updates } : prev;
     });
-  }, [form.fields, fieldValues]);
+  }, [form.fields, form.staticValues, fieldValues]);
 
   const bgColor = form.branding.backgroundColor ?? '#f9fafb';
   const primaryColor = form.branding.primaryColor ?? '#4f46e5';

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Globe } from 'lucide-react';
+import { ArrowLeft, Save, Globe, Database } from 'lucide-react';
 import { orgs as orgsApi } from '@/lib/api';
 import type { Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -190,6 +190,27 @@ export default function OrgSettingsPage() {
           <Button variant="outline" size="sm" onClick={() => navigate(`/orgs/${orgId}/domains`)}>
             <Globe className="h-4 w-4" />
             Manage Custom Domains
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Static Values */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Static Values</CardTitle>
+          <CardDescription>
+            Organization-wide constants available in all forms
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 mb-3">
+            Define key-value pairs (e.g. company name, tax rate) that can be used in
+            calculated and hidden field formulas across all forms using{' '}
+            <code className="font-mono text-xs bg-gray-100 px-1 rounded">{'{{static:Key}}'}</code> syntax.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/orgs/${orgId}/static-values`)}>
+            <Database className="h-4 w-4" />
+            Manage Static Values
           </Button>
         </CardContent>
       </Card>

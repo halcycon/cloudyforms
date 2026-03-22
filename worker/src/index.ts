@@ -15,6 +15,7 @@ import { fileRoutes } from "./routes/files";
 import { orgDomainRoutes, adminDomainRoutes } from "./routes/domains";
 import { embedRoutes } from "./routes/embed";
 import { workflowRoutes } from "./routes/workflow";
+import { staticValueRoutes } from "./routes/static-values";
 import { domainMiddleware } from "./middleware/domain";
 import { loggerMiddleware } from "./middleware/logger";
 
@@ -75,6 +76,7 @@ app.route("/api/auth", authRoutes);
 app.route("/api/orgs", orgRoutes);
 app.route("/api/orgs", groupRoutes);          // group sub-routes under /api/orgs/:orgId/groups
 app.route("/api/orgs", orgDomainRoutes);   // domain sub-routes under /api/orgs/:orgId/domains
+app.route("/api/orgs", staticValueRoutes); // static-value sub-routes under /api/orgs/:orgId/static-values
 app.route("/api/forms", formRoutes);
 app.route("/api/forms", workflowRoutes);   // workflow sub-routes under /api/forms/:formId/workflow
 app.route("/api/responses", responseRoutes);

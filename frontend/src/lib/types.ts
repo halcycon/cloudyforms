@@ -195,6 +195,16 @@ export interface BrandingConfig {
   theme?: import('./themes').ThemeConfig;
 }
 
+export interface StaticValue {
+  id: string;
+  orgId: string;
+  key: string;
+  label: string;
+  value: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Form {
   id: string;
   orgId: string;
@@ -209,6 +219,8 @@ export interface Form {
   branding: BrandingConfig;
   documentTemplate?: DocumentTemplate | null;
   workflowStages?: WorkflowStage[];
+  /** Org-level static values available for formula placeholders */
+  staticValues?: { key: string; value: string }[];
   createdAt: string;
   updatedAt: string;
   responseCount?: number;
