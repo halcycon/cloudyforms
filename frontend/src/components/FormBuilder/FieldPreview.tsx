@@ -1,6 +1,6 @@
 import type { FormField } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Star, Minus, EyeOff } from 'lucide-react';
+import { Star, Minus, EyeOff, Calculator } from 'lucide-react';
 
 interface FieldPreviewProps {
   field: FormField;
@@ -39,6 +39,26 @@ export function FieldPreview({ field }: FieldPreviewProps) {
             <span className="text-indigo-400">ƒ {field.formula}</span>
           ) : (
             <span>{field.defaultValue || 'No value set'}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === 'calculated') {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <Calculator className="h-3.5 w-3.5 text-indigo-400" />
+          <span className="text-sm font-medium text-gray-700">{field.label}</span>
+          <span className="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">read-only</span>
+        </div>
+        {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
+        <div className={cn(inputClass, 'flex items-center gap-2 text-xs italic')} style={{ height: 36 }}>
+          {field.formula ? (
+            <span className="text-indigo-400">ƒ {field.formula}</span>
+          ) : (
+            <span>No formula set</span>
           )}
         </div>
       </div>

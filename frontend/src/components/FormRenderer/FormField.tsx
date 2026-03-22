@@ -114,6 +114,19 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
     );
   }
 
+  // Calculated fields: always read-only display
+  if (field.type === 'calculated') {
+    return (
+      <div className="space-y-1">
+        {labelEl}
+        {descEl}
+        <div className="flex h-9 w-full items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+          {(value as string) ?? ''}
+        </div>
+      </div>
+    );
+  }
+
   const isReadOnly = field.readOnly ?? false;
 
   return (

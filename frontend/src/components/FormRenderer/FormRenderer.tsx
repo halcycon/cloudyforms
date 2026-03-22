@@ -108,7 +108,7 @@ function buildValidationSchema(
   const expanded = expandFields(fields, groupRowCounts);
 
   for (const field of expanded) {
-    if (['heading', 'paragraph', 'divider', 'hidden'].includes(field.type)) continue;
+    if (['heading', 'paragraph', 'divider', 'hidden', 'calculated'].includes(field.type)) continue;
 
     // Don't validate fields hidden by conditional logic
     if (!shouldShowField(field, formValues, fields)) continue;
@@ -229,7 +229,8 @@ function evaluateFormula(
   allFields: FormField[],
   formValues: Record<string, unknown>,
 ): string {
-  return formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
+  // Replace {{Label}} placeholders with field values
+  const substituted = formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
     const trimmed = label.trim().toLowerCase();
     const field = allFields.find(
       (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
@@ -238,6 +239,96 @@ function evaluateFormula(
     const val = formValues[field.id];
     return val != null ? String(val) : '';
   });
+
+  return substituted;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const DAY_NAMES = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+];
+
+/**
+ * Evaluate a calculated field formula. Supports:
+ * - {{Field Label}} placeholders (replaced with field values)
+ * - Math operators: + - * / ( )
+ * - Functions: round, floor, ceil, abs, min, max, upper, lower, month, year, day
+ */
+function evaluateCalculatedFormula(
+  formula: string,
+  allFields: FormField[],
+  formValues: Record<string, unknown>,
+): string {
+  // Step 1: Replace {{Label}} placeholders with field values
+  const substituted = formula.replace(/\{\{(.+?)\}\}/g, (_match, label: string) => {
+    const trimmed = label.trim().toLowerCase();
+    const field = allFields.find(
+      (f) => f.label.toLowerCase() === trimmed || f.id === trimmed || (f.name && f.name.toLowerCase() === trimmed),
+    );
+    if (!field) return '';
+    const val = formValues[field.id];
+    return val != null ? String(val) : '';
+  });
+
+  // Step 2: Apply named functions from innermost to outermost
+  let result = substituted;
+  const funcPattern = /\b(round|floor|ceil|abs|min|max|upper|lower|month|year|day)\(([^()]*)\)/i;
+  let safety = 50;
+  while (funcPattern.test(result) && safety-- > 0) {
+    result = result.replace(funcPattern, (_m, fn: string, args: string) => {
+      const name = fn.toLowerCase();
+      switch (name) {
+        case 'round': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.round(n)); }
+        case 'floor': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.floor(n)); }
+        case 'ceil': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.ceil(n)); }
+        case 'abs': { const n = parseFloat(args); return isNaN(n) ? '' : String(Math.abs(n)); }
+        case 'min': {
+          const parts = args.split(',').map((s) => parseFloat(s.trim()));
+          return parts.some(isNaN) ? '' : String(Math.min(...parts));
+        }
+        case 'max': {
+          const parts = args.split(',').map((s) => parseFloat(s.trim()));
+          return parts.some(isNaN) ? '' : String(Math.max(...parts));
+        }
+        case 'upper': return args.toUpperCase();
+        case 'lower': return args.toLowerCase();
+        case 'month': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : MONTH_NAMES[d.getMonth()];
+        }
+        case 'year': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : String(d.getFullYear());
+        }
+        case 'day': {
+          const d = new Date(args.trim());
+          return isNaN(d.getTime()) ? '' : DAY_NAMES[d.getDay()];
+        }
+        default: return args;
+      }
+    });
+  }
+
+  // Step 3: Try to evaluate as a math expression if it looks numeric
+  // Only allow digits, whitespace, operators, decimal points, and parentheses
+  if (/^[\d\s+\-*/.()]+$/.test(result.trim()) && result.trim() !== '') {
+    try {
+      // Use Function constructor for safe arithmetic evaluation
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(`"use strict"; return (${result.trim()});`);
+      const val = fn();
+      if (typeof val === 'number' && isFinite(val)) {
+        return String(val);
+      }
+    } catch {
+      // Not a valid expression, return as-is
+    }
+  }
+
+  return result;
 }
 
 export function FormRenderer({
@@ -286,7 +377,7 @@ export function FormRenderer({
         defaults[f.id] = f.defaultValue;
       }
       // Initialize read-only fields with defaultValue
-      if (f.readOnly && f.defaultValue != null && f.type !== 'hidden') {
+      if (f.readOnly && f.defaultValue != null && f.type !== 'hidden' && f.type !== 'calculated') {
         defaults[f.id] = f.defaultValue;
       }
     }
@@ -299,13 +390,17 @@ export function FormRenderer({
     }
   }, [form.fields, initialValues]);
 
-  // Recompute hidden formula field values whenever field values change
+  // Recompute hidden and calculated formula field values whenever field values change
   useEffect(() => {
-    const formulaFields = form.fields.filter((f) => f.type === 'hidden' && f.formula);
-    if (formulaFields.length === 0) return;
+    const hiddenFormulaFields = form.fields.filter((f) => f.type === 'hidden' && f.formula);
+    const calculatedFields = form.fields.filter((f) => f.type === 'calculated' && f.formula);
+    if (hiddenFormulaFields.length === 0 && calculatedFields.length === 0) return;
     const updates: Record<string, unknown> = {};
-    for (const f of formulaFields) {
+    for (const f of hiddenFormulaFields) {
       updates[f.id] = evaluateFormula(f.formula!, form.fields, fieldValues);
+    }
+    for (const f of calculatedFields) {
+      updates[f.id] = evaluateCalculatedFormula(f.formula!, form.fields, fieldValues);
     }
     // Only update if computed values actually changed to avoid infinite loops
     setFieldValues((prev) => {

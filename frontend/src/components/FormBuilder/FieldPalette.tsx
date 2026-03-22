@@ -4,7 +4,7 @@ import {
   Type, AlignLeft, Hash, Mail, Phone, Calendar,
   ChevronDown, CheckSquare, Circle, List, Upload,
   Star, SlidersHorizontal, Heading, AlignCenter,
-  Minus, PenTool, ToggleLeft, Layers, EyeOff,
+  Minus, PenTool, ToggleLeft, Layers, EyeOff, Calculator,
 } from 'lucide-react';
 import type { FieldType, FieldGroup } from '@/lib/types';
 import { fieldGroups as fieldGroupsApi } from '@/lib/api';
@@ -37,6 +37,7 @@ const FIELD_TYPES: FieldTypeConfig[] = [
   { type: 'scale', label: 'Scale', icon: <SlidersHorizontal className="h-4 w-4" />, group: 'Advanced' },
   { type: 'signature', label: 'Signature', icon: <PenTool className="h-4 w-4" />, group: 'Advanced' },
   { type: 'hidden', label: 'Hidden', icon: <EyeOff className="h-4 w-4" />, group: 'Advanced' },
+  { type: 'calculated', label: 'Calculated', icon: <Calculator className="h-4 w-4" />, group: 'Advanced' },
   // Layout
   { type: 'heading', label: 'Heading', icon: <Heading className="h-4 w-4" />, group: 'Layout' },
   { type: 'paragraph', label: 'Paragraph', icon: <AlignCenter className="h-4 w-4" />, group: 'Layout' },
