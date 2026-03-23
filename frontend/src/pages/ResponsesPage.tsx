@@ -287,6 +287,7 @@ export default function ResponsesPage() {
               ) : (
                 responsesList.map((resp) => {
                   const preview = Object.entries(resp.data)
+                    .filter(([, v]) => !(typeof v === 'string' && (v as string).startsWith('data:image')))
                     .slice(0, 2)
                     .map(([, v]) => String(v))
                     .join(' · ');
@@ -510,9 +511,17 @@ export default function ResponsesPage() {
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
                           {field.label}
                         </p>
-                        <p className="text-sm text-gray-900">
-                          {Array.isArray(val) ? val.join(', ') : String(val)}
-                        </p>
+                        {field.type === 'signature' && typeof val === 'string' && val.startsWith('data:image') ? (
+                          <img
+                            src={val}
+                            alt={`${field.label} signature`}
+                            className="max-h-24 border border-gray-200 rounded bg-white"
+                          />
+                        ) : (
+                          <p className="text-sm text-gray-900 break-words">
+                            {Array.isArray(val) ? val.join(', ') : String(val)}
+                          </p>
+                        )}
                       </div>
                     );
                   })}

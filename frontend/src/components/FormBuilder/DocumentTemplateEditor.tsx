@@ -604,6 +604,7 @@ export function DocumentTemplateEditor({
                             const hasMappings = fieldMappings.length > 0;
                             const baseField = findBaseField(mf.id);
                             const multiOption = hasOptions(baseField);
+                            const hasMultipleMappings = fieldMappings.length > 1;
                             const isRowVariant = mf.id !== mf.baseFieldId;
                             return (
                               <div key={mf.id}>
@@ -620,7 +621,7 @@ export function DocumentTemplateEditor({
                                     {mf.label}
                                   </span>
                                   <div className="flex items-center gap-1 flex-shrink-0">
-                                    {hasMappings && !multiOption ? (
+                                    {hasMappings && !multiOption && !hasMultipleMappings ? (
                                       <>
                                         <span className="text-green-600 text-[10px]">
                                           p{fieldMappings[0].page}
@@ -630,7 +631,7 @@ export function DocumentTemplateEditor({
                                           size="sm"
                                           className="h-5 w-5 p-0 text-gray-400 hover:text-blue-500"
                                           onClick={() => addFieldMapping(mf.id)}
-                                          title="Reposition"
+                                          title="Add another placement"
                                         >
                                           <GripVertical className="h-3 w-3" />
                                         </Button>
@@ -652,20 +653,22 @@ export function DocumentTemplateEditor({
                                         onClick={() => addFieldMapping(mf.id)}
                                       >
                                         <Plus className="h-3 w-3 mr-0.5" />
-                                        {multiOption && hasMappings ? 'Add' : 'Place'}
+                                        {(multiOption || hasMultipleMappings) && hasMappings ? 'Add' : 'Place'}
                                       </Button>
                                     )}
                                   </div>
                                 </div>
-                                {/* Show individual option mappings for multi-option fields */}
-                                {multiOption && fieldMappings.length > 0 && (
+                                {/* Show individual mappings for multi-option fields or fields with multiple placements */}
+                                {(multiOption || hasMultipleMappings) && fieldMappings.length > 0 && (
                                   <div className="ml-4 mt-0.5 space-y-0.5">
-                                    {fieldMappings.map((fm) => {
+                                    {fieldMappings.map((fm, idx) => {
                                       const fmKey = mappingKey(fm);
                                       const opt = baseField?.options?.find((o) => o.value === fm.optionValue);
-                                      const optLabel = fm.optionValue
-                                        ? (opt?.label ?? fm.optionValue)
-                                        : 'All options (text)';
+                                      const optLabel = multiOption
+                                        ? (fm.optionValue
+                                          ? (opt?.label ?? fm.optionValue)
+                                          : 'All options (text)')
+                                        : `Placement ${idx + 1}`;
                                       return (
                                         <div
                                           key={fmKey}
@@ -806,6 +809,7 @@ export function DocumentTemplateEditor({
                       <ComputedFieldsPanel
                         computedMappings={config.computedMappings ?? []}
                         fields={dataFields}
+                        mappableFields={mappableFields}
                         currentPage={currentPage}
                         onChange={(computedMappings) => update({ computedMappings })}
                         detectedPdfFields={detectedPdfFields}
@@ -1234,6 +1238,7 @@ function FieldMappingEditor({
 function ComputedFieldsPanel({
   computedMappings,
   fields,
+  mappableFields,
   currentPage,
   onChange,
   detectedPdfFields,
@@ -1241,6 +1246,7 @@ function ComputedFieldsPanel({
 }: {
   computedMappings: ComputedFieldMapping[];
   fields: FormField[];
+  mappableFields: { id: string; label: string; baseFieldId: string }[];
   currentPage: number;
   onChange: (mappings: ComputedFieldMapping[]) => void;
   detectedPdfFields: string[];
@@ -1444,19 +1450,24 @@ function ComputedFieldsPanel({
                         Expression template
                       </Label>
                       <div className="flex flex-wrap gap-0.5 mb-1">
-                        {fields.map((f) => (
+                        {mappableFields.map((mf) => (
                           <button
-                            key={f.id}
+                            key={mf.id}
                             type="button"
-                            className="inline-flex items-center rounded bg-teal-100 border border-teal-300 px-1 py-0 text-[9px] font-medium text-teal-700 hover:bg-teal-200 transition-colors"
+                            className={cn(
+                              'inline-flex items-center rounded border px-1 py-0 text-[9px] font-medium transition-colors',
+                              mf.id !== mf.baseFieldId
+                                ? 'bg-teal-50 border-teal-200 text-teal-600 hover:bg-teal-100'
+                                : 'bg-teal-100 border-teal-300 text-teal-700 hover:bg-teal-200',
+                            )}
                             onClick={() =>
                               updateComputed(cm.id, {
-                                value: `${cm.value ?? ''}{{${f.label}}}`,
+                                value: `${cm.value ?? ''}{{${mf.label}}}`,
                               })
                             }
-                            title={`Insert {{${f.label}}}`}
+                            title={`Insert {{${mf.label}}}`}
                           >
-                            {f.label}
+                            {mf.label}
                           </button>
                         ))}
                       </div>
@@ -1468,10 +1479,46 @@ function ComputedFieldsPanel({
                         className="h-5 text-[10px] font-mono"
                         placeholder="e.g. {{First Name}} {{Last Name}}"
                       />
-                      <p className="text-[9px] text-teal-500 mt-0.5">
-                        Use {'{{Field Label}}'} to insert field values. Text
-                        between placeholders is kept as-is.
-                      </p>
+                      <div className="text-[9px] text-teal-500 mt-0.5 space-y-0.5">
+                        <p>
+                          Use {'{{Field Label}}'} to insert field values. Text
+                          between placeholders is kept as-is.
+                        </p>
+                        <p>
+                          Repeatable group fields use the label shown (e.g.{' '}
+                          {'{{Field (Row 2)}}'} for row 2).
+                        </p>
+                        <details className="cursor-pointer">
+                          <summary className="font-medium text-teal-600">
+                            Available functions &amp; syntax
+                          </summary>
+                          <ul className="list-disc ml-3 mt-0.5 space-y-0.5">
+                            <li>
+                              <strong>Date:</strong>{' '}
+                              <code>day({'{{Date Field}}'})</code> → weekday name (e.g. Monday),{' '}
+                              <code>month({'{{Date Field}}'})</code> → month name (e.g. January),{' '}
+                              <code>year({'{{Date Field}}'})</code> → full year (e.g. 2026)
+                            </li>
+                            <li>
+                              <strong>Math:</strong>{' '}
+                              <code>round(x)</code>, <code>floor(x)</code>, <code>ceil(x)</code>,{' '}
+                              <code>abs(x)</code>, <code>min(a,b)</code>, <code>max(a,b)</code>
+                            </li>
+                            <li>
+                              <strong>String:</strong>{' '}
+                              <code>upper(x)</code>, <code>lower(x)</code>
+                            </li>
+                            <li>
+                              <strong>Arithmetic:</strong>{' '}
+                              <code>+</code> <code>-</code> <code>*</code> <code>/</code> with parentheses
+                            </li>
+                            <li>
+                              <strong>Static values:</strong>{' '}
+                              <code>{'{{static:Key}}'}</code>
+                            </li>
+                          </ul>
+                        </details>
+                      </div>
                     </div>
                   ) : (
                     <div>
@@ -1479,27 +1526,30 @@ function ComputedFieldsPanel({
                         Fields to include
                       </Label>
                       <div className="max-h-20 overflow-y-auto space-y-0.5">
-                        {fields.map((f) => (
+                        {mappableFields.map((mf) => (
                           <label
-                            key={f.id}
-                            className="flex items-center gap-1 text-[10px]"
+                            key={mf.id}
+                            className={cn(
+                              'flex items-center gap-1 text-[10px]',
+                              mf.id !== mf.baseFieldId && 'ml-2',
+                            )}
                           >
                             <input
                               type="checkbox"
                               checked={
-                                cm.calculationFieldIds?.includes(f.id) ?? false
+                                cm.calculationFieldIds?.includes(mf.id) ?? false
                               }
                               onChange={(e) => {
                                 const ids = cm.calculationFieldIds ?? [];
                                 updateComputed(cm.id, {
                                   calculationFieldIds: e.target.checked
-                                    ? [...ids, f.id]
-                                    : ids.filter((i) => i !== f.id),
+                                    ? [...ids, mf.id]
+                                    : ids.filter((i) => i !== mf.id),
                                 });
                               }}
                               className="h-2.5 w-2.5"
                             />
-                            {f.label}
+                            {mf.label}
                           </label>
                         ))}
                       </div>
