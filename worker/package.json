@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.2.2",
-    "hono": "^4.4.0",
+    "hono": "^4.12.9",
     "jose": "^5.6.3",
     "marked": "^14.1.4",
     "nanoid": "^5.0.7",
