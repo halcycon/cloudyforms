@@ -420,7 +420,7 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
                     }}
                     className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500"
                   >
-                    <RotateCcw className="h-3 w-3" /> Clear &amp; Re-sign
+                    <RotateCcw className="h-3 w-3" /> Clear & Re-sign
                   </button>
                 )}
               </div>
