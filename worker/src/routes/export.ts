@@ -561,46 +561,25 @@ async function generatePdfFromTemplate(
     // Handle signature fields – embed the image instead of drawing text
     if (fieldDef?.type === "signature" && typeof data[mapping.fieldId] === "string") {
       const sigValue = data[mapping.fieldId] as string;
-      if (sigValue.startsWith("data:image/png")) {
+      const isDataUri = sigValue.startsWith("data:image/");
+      if (isDataUri) {
+        const DEFAULT_SIG_WIDTH = 150;
         try {
           const base64Data = sigValue.split(",")[1];
           const imageBytes = Uint8Array.from(atob(base64Data), (ch) => ch.charCodeAt(0));
-          const pngImage = await pdfDoc.embedPng(imageBytes);
-          const imgWidth = mapping.width || 150;
-          const imgHeight = mapping.height || (imgWidth * pngImage.height / pngImage.width);
-          page.drawImage(pngImage, {
+          const embeddedImage = sigValue.startsWith("data:image/png")
+            ? await pdfDoc.embedPng(imageBytes)
+            : await pdfDoc.embedJpg(imageBytes);
+          const imgWidth = mapping.width || DEFAULT_SIG_WIDTH;
+          const imgHeight = mapping.height || (imgWidth * embeddedImage.height / embeddedImage.width);
+          page.drawImage(embeddedImage, {
             x: mapping.x,
             y: height - mapping.y - imgHeight,
             width: imgWidth,
             height: imgHeight,
           });
         } catch {
-          // Fall through to text rendering if image embedding fails
-          if (value) {
-            page.drawText("[Signature]", {
-              x: mapping.x,
-              y: height - mapping.y - fontSize,
-              size: fontSize,
-              font,
-              color: rgb(color.r, color.g, color.b),
-            });
-          }
-        }
-        continue;
-      } else if (sigValue.startsWith("data:image/jpeg") || sigValue.startsWith("data:image/jpg")) {
-        try {
-          const base64Data = sigValue.split(",")[1];
-          const imageBytes = Uint8Array.from(atob(base64Data), (ch) => ch.charCodeAt(0));
-          const jpgImage = await pdfDoc.embedJpg(imageBytes);
-          const imgWidth = mapping.width || 150;
-          const imgHeight = mapping.height || (imgWidth * jpgImage.height / jpgImage.width);
-          page.drawImage(jpgImage, {
-            x: mapping.x,
-            y: height - mapping.y - imgHeight,
-            width: imgWidth,
-            height: imgHeight,
-          });
-        } catch {
+          // Fall through to placeholder text if image embedding fails
           if (value) {
             page.drawText("[Signature]", {
               x: mapping.x,
