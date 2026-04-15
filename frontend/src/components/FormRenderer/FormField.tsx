@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { Star, Upload, X } from 'lucide-react';
+import { Star, Upload, X, RotateCcw } from 'lucide-react';
 
 interface FormFieldProps {
   field: FormFieldType;
@@ -26,6 +26,9 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+  // Track whether the user has chosen to re-sign (clearing the existing signature to draw a new one)
+  const [isResigning, setIsResigning] = useState(false);
+  const hasExistingSignature = typeof value === 'string' && value.startsWith('data:image/');
 
   // Signature drawing
   function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) {
@@ -396,31 +399,61 @@ export function FormFieldRenderer({ field, value, onChange, error, reserveDescri
 
       {field.type === 'signature' && (
         <div className="space-y-2">
-          <div className={cn('border border-gray-300 rounded-md overflow-hidden bg-white', isReadOnly && 'pointer-events-none opacity-75')}>
-            <canvas
-              ref={canvasRef}
-              width={600}
-              height={150}
-              className="signature-canvas w-full h-[150px] touch-none"
-              onMouseDown={startDraw}
-              onMouseMove={draw}
-              onMouseUp={endDraw}
-              onMouseLeave={endDraw}
-              onTouchStart={startDraw}
-              onTouchMove={draw}
-              onTouchEnd={endDraw}
-            />
-          </div>
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-400">Draw your signature above</p>
-            <button
-              type="button"
-              onClick={clearSignature}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500"
-            >
-              <X className="h-3 w-3" /> Clear
-            </button>
-          </div>
+          {/* Display existing signature as a read-only image */}
+          {hasExistingSignature && !isResigning ? (
+            <>
+              <div className={cn('border border-gray-300 rounded-md overflow-hidden bg-white p-2')}>
+                <img
+                  src={value as string}
+                  alt="Existing signature"
+                  className="w-full h-[150px] object-contain"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-gray-500">Signature on file</p>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsResigning(true);
+                      onChange('');
+                    }}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Clear & Re-sign
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={cn('border border-gray-300 rounded-md overflow-hidden bg-white', isReadOnly && 'pointer-events-none opacity-75')}>
+                <canvas
+                  ref={canvasRef}
+                  width={600}
+                  height={150}
+                  className="signature-canvas w-full h-[150px] touch-none"
+                  onMouseDown={startDraw}
+                  onMouseMove={draw}
+                  onMouseUp={endDraw}
+                  onMouseLeave={endDraw}
+                  onTouchStart={startDraw}
+                  onTouchMove={draw}
+                  onTouchEnd={endDraw}
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-gray-400">Draw your signature above</p>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500"
+                >
+                  <X className="h-3 w-3" /> Clear
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
