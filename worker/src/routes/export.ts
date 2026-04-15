@@ -693,9 +693,26 @@ async function generatePdfFromMarkdown(
   data: Record<string, unknown>,
   fields: { id: string; label?: string; type?: string }[]
 ): Promise<Uint8Array> {
+  // Collect signature data URIs keyed by a unique marker so we can embed images later
+  const signatureMarkers = new Map<string, string>(); // marker -> dataUri
+
   // Replace field placeholders {{field_label}} or {{field_id}} with values
   let content = markdownContent;
   for (const field of fields) {
+    // For signature fields with data URIs, substitute a marker instead of raw base64
+    if (field.type === "signature" && typeof data[field.id] === "string" && (data[field.id] as string).startsWith("data:image/")) {
+      const marker = `__SIG_${field.id}__`;
+      signatureMarkers.set(marker, data[field.id] as string);
+      content = content.replace(
+        new RegExp(`\\{\\{\\s*${escapeRegex(field.label ?? field.id)}\\s*\\}\\}`, "gi"),
+        marker
+      );
+      content = content.replace(
+        new RegExp(`\\{\\{\\s*${escapeRegex(field.id)}\\s*\\}\\}`, "gi"),
+        marker
+      );
+      continue;
+    }
     const value = getFieldValue(data, fields, field.id);
     content = content.replace(
       new RegExp(`\\{\\{\\s*${escapeRegex(field.label ?? field.id)}\\s*\\}\\}`, "gi"),
@@ -751,6 +768,77 @@ async function generatePdfFromMarkdown(
     }
   }
 
+  // Build a regex that matches any signature marker in text
+  const sigMarkerPattern = signatureMarkers.size > 0
+    ? new RegExp(
+        Array.from(signatureMarkers.keys()).map(escapeRegex).join("|"),
+        "g"
+      )
+    : null;
+
+  /** Draw a signature image inline and advance y. Falls back to placeholder text on error. */
+  async function drawSignatureImage(dataUri: string) {
+    const SIG_WIDTH = 150;
+    try {
+      const base64Data = dataUri.split(",")[1];
+      const imageBytes = Uint8Array.from(atob(base64Data), (ch) => ch.charCodeAt(0));
+      const embeddedImage = dataUri.startsWith("data:image/png")
+        ? await pdfDoc.embedPng(imageBytes)
+        : await pdfDoc.embedJpg(imageBytes);
+      const imgHeight = SIG_WIDTH * embeddedImage.height / embeddedImage.width;
+      ensureSpace(imgHeight);
+      page.drawImage(embeddedImage, {
+        x: margin,
+        y: y - imgHeight,
+        width: SIG_WIDTH,
+        height: imgHeight,
+      });
+      y -= imgHeight + 4;
+    } catch {
+      // Fall back to placeholder text if image embedding fails
+      ensureSpace(16);
+      page.drawText("[Signature]", {
+        x: margin,
+        y: y - 11,
+        size: 11,
+        font: fontRegular,
+        color: rgb(0, 0, 0),
+      });
+      y -= 16;
+    }
+  }
+
+  /**
+   * Render a block of text that may contain signature markers. Text segments
+   * are drawn with drawWrappedText; markers are replaced by embedded images.
+   */
+  async function drawTextWithSignatures(
+    text: string,
+    fontSize: number,
+    font: typeof fontRegular,
+    color = rgb(0, 0, 0),
+    indent = 0
+  ) {
+    if (!sigMarkerPattern) {
+      drawWrappedText(text, fontSize, font, color, indent);
+      return;
+    }
+    // Split text around signature markers, preserving the markers as tokens
+    const parts = text.split(sigMarkerPattern);
+    const markers = text.match(sigMarkerPattern) ?? [];
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]) {
+        drawWrappedText(parts[i], fontSize, font, color, indent);
+      }
+      if (i < markers.length) {
+        const dataUri = signatureMarkers.get(markers[i]);
+        if (dataUri) {
+          await drawSignatureImage(dataUri);
+        }
+      }
+    }
+  }
+
   function drawWrappedText(
     text: string,
     fontSize: number,
@@ -800,7 +888,7 @@ async function generatePdfFromMarkdown(
         const sizes: Record<number, number> = { 1: 24, 2: 20, 3: 16, 4: 14, 5: 12, 6: 11 };
         const fontSize = sizes[token.depth] ?? 12;
         y -= fontSize * 0.5; // spacing before heading
-        drawWrappedText(token.text, fontSize, fontBold);
+        await drawTextWithSignatures(token.text, fontSize, fontBold);
         y -= fontSize * 0.3; // spacing after heading
         break;
       }
@@ -811,7 +899,7 @@ async function generatePdfFromMarkdown(
           .replace(/__(.+?)__/g, "$1")
           .replace(/\*(.+?)\*/g, "$1")
           .replace(/_(.+?)_/g, "$1");
-        drawWrappedText(text, 11, fontRegular);
+        await drawTextWithSignatures(text, 11, fontRegular);
         y -= 6; // paragraph spacing
         break;
       }
@@ -822,7 +910,7 @@ async function generatePdfFromMarkdown(
           const text = item.text
             .replace(/\*\*(.+?)\*\*/g, "$1")
             .replace(/_(.+?)_/g, "$1");
-          drawWrappedText(`${bullet}${text}`, 11, fontRegular, rgb(0, 0, 0), 15);
+          await drawTextWithSignatures(`${bullet}${text}`, 11, fontRegular, rgb(0, 0, 0), 15);
         }
         y -= 4;
         break;
@@ -842,7 +930,7 @@ async function generatePdfFromMarkdown(
         const text = token.text
           ?.replace(/\*\*(.+?)\*\*/g, "$1")
           .replace(/_(.+?)_/g, "$1") ?? "";
-        drawWrappedText(text, 11, fontItalic, rgb(0.3, 0.3, 0.3), 20);
+        await drawTextWithSignatures(text, 11, fontItalic, rgb(0.3, 0.3, 0.3), 20);
         y -= 6;
         break;
       }
@@ -853,7 +941,7 @@ async function generatePdfFromMarkdown(
       default: {
         // For any unrecognized token with raw text, render as paragraph
         if ("text" in token && typeof token.text === "string") {
-          drawWrappedText(token.text, 11, fontRegular);
+          await drawTextWithSignatures(token.text, 11, fontRegular);
           y -= 6;
         }
         break;
