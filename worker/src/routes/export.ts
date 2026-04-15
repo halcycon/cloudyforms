@@ -558,6 +558,63 @@ async function generatePdfFromTemplate(
       continue;
     }
 
+    // Handle signature fields – embed the image instead of drawing text
+    if (fieldDef?.type === "signature" && typeof data[mapping.fieldId] === "string") {
+      const sigValue = data[mapping.fieldId] as string;
+      if (sigValue.startsWith("data:image/png")) {
+        try {
+          const base64Data = sigValue.split(",")[1];
+          const imageBytes = Uint8Array.from(atob(base64Data), (ch) => ch.charCodeAt(0));
+          const pngImage = await pdfDoc.embedPng(imageBytes);
+          const imgWidth = mapping.width || 150;
+          const imgHeight = mapping.height || (imgWidth * pngImage.height / pngImage.width);
+          page.drawImage(pngImage, {
+            x: mapping.x,
+            y: height - mapping.y - imgHeight,
+            width: imgWidth,
+            height: imgHeight,
+          });
+        } catch {
+          // Fall through to text rendering if image embedding fails
+          if (value) {
+            page.drawText("[Signature]", {
+              x: mapping.x,
+              y: height - mapping.y - fontSize,
+              size: fontSize,
+              font,
+              color: rgb(color.r, color.g, color.b),
+            });
+          }
+        }
+        continue;
+      } else if (sigValue.startsWith("data:image/jpeg") || sigValue.startsWith("data:image/jpg")) {
+        try {
+          const base64Data = sigValue.split(",")[1];
+          const imageBytes = Uint8Array.from(atob(base64Data), (ch) => ch.charCodeAt(0));
+          const jpgImage = await pdfDoc.embedJpg(imageBytes);
+          const imgWidth = mapping.width || 150;
+          const imgHeight = mapping.height || (imgWidth * jpgImage.height / jpgImage.width);
+          page.drawImage(jpgImage, {
+            x: mapping.x,
+            y: height - mapping.y - imgHeight,
+            width: imgWidth,
+            height: imgHeight,
+          });
+        } catch {
+          if (value) {
+            page.drawText("[Signature]", {
+              x: mapping.x,
+              y: height - mapping.y - fontSize,
+              size: fontSize,
+              font,
+              color: rgb(color.r, color.g, color.b),
+            });
+          }
+        }
+        continue;
+      }
+    }
+
     // Handle boolean display modes (simple checkbox without options)
     if (isBoolean && mapping.booleanDisplay && mapping.booleanDisplay !== "text") {
       const isTruthy = isTruthyValue(value);
@@ -891,6 +948,68 @@ exportRouter.get("/response/:responseId/pdf", authMiddleware, async (c) => {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+});
+
+// Export draft (pre-fill) response as filled PDF — public, token-authenticated
+exportRouter.get("/draft/:token/pdf", async (c) => {
+  const { token } = c.req.param();
+
+  const row = await dbQueryFirst<
+    ResponseRow & { org_id: string; fields: string; title: string; document_template: string | null }
+  >(
+    c.env.DB,
+    `SELECT r.*, f.org_id, f.fields, f.title, f.document_template
+     FROM form_responses r JOIN forms f ON f.id = r.form_id
+     WHERE r.draft_token = ? AND r.status = 'draft'`,
+    [token]
+  );
+
+  if (!row) return c.json({ error: "Draft not found or already submitted" }, 404);
+
+  if (!row.document_template) {
+    return c.json({ error: "No document template configured for this form" }, 400);
+  }
+
+  const template: DocumentTemplate = JSON.parse(row.document_template);
+  if (!template.enabled) {
+    return c.json({ error: "Document template is not enabled" }, 400);
+  }
+
+  const fields = JSON.parse(row.fields) as { id: string; label?: string; type?: string; options?: { label: string; value: string }[] }[];
+  const data = JSON.parse(row.data) as Record<string, unknown>;
+
+  let pdfResult: Uint8Array;
+
+  if (template.type === "pdf") {
+    if (!template.fileKey) {
+      return c.json({ error: "No PDF template file uploaded" }, 400);
+    }
+
+    const fileObj = await getFile(c.env.R2, template.fileKey);
+    if (!fileObj) {
+      return c.json({ error: "Template PDF file not found in storage" }, 404);
+    }
+
+    const pdfBytes = await fileObj.arrayBuffer();
+    pdfResult = await generatePdfFromTemplate(pdfBytes, template, data, fields);
+  } else if (template.type === "markdown") {
+    if (!template.markdownContent) {
+      return c.json({ error: "No markdown content in template" }, 400);
+    }
+
+    pdfResult = await generatePdfFromMarkdown(template.markdownContent, data, fields);
+  } else {
+    return c.json({ error: "Unknown template type" }, 400);
+  }
+
+  const filename = `${row.title.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "")}-draft.pdf`;
+
+  return new Response(pdfResult, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${filename}"`,
     },
   });
 });

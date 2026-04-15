@@ -265,6 +265,11 @@ export const exportData = {
       .get(`/export/response/${responseId}/pdf`, { responseType: 'blob' })
       .then((r) => r.data as Blob),
 
+  draftPdf: (token: string) =>
+    apiClient
+      .get(`/export/draft/${token}/pdf`, { responseType: 'blob' })
+      .then((r) => r.data as Blob),
+
   importForm: (orgId: string, data: Record<string, unknown>, includeResponses: boolean) =>
     post<{ id: string; title: string; slug: string; importedResponses: number; form: Form }>(
       '/export/import',
