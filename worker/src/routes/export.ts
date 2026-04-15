@@ -449,6 +449,9 @@ async function generatePdfFromTemplate(
     if (pdfFields.length > 0) {
       for (const mapping of template.fieldMappings) {
         if (mapping.pdfFieldName) {
+          // Skip signature fields – they'll be embedded as images in the overlay pass
+          const fieldDef = fields.find((f) => f.id === mapping.fieldId);
+          if (fieldDef?.type === "signature") continue;
           const value = getFieldValue(data, fields, mapping.fieldId);
           try {
             const textField = pdfForm.getTextField(mapping.pdfFieldName);
@@ -498,7 +501,13 @@ async function generatePdfFromTemplate(
   const shrinkOffsets = new Map<string, number>();
 
   for (const mapping of template.fieldMappings) {
-    if (hasFilledFormFields && mapping.pdfFieldName) continue;
+    // For repeatable group row variants (e.g. "address_row_2"), fall back to the base field definition
+    const fieldDef = fields.find((f) => f.id === mapping.fieldId)
+      ?? fields.find((f) => f.id === mapping.fieldId.replace(ROW_SUFFIX_RE, ""));
+
+    // Skip mappings already filled via PDF form fields, but always allow
+    // signature fields through so they can be embedded as images below
+    if (hasFilledFormFields && mapping.pdfFieldName && fieldDef?.type !== "signature") continue;
 
     const pageIndex = (mapping.page || 1) - 1;
     if (pageIndex < 0 || pageIndex >= pages.length) continue;
@@ -506,9 +515,6 @@ async function generatePdfFromTemplate(
     const page = pages[pageIndex];
     const { height } = page.getSize();
     const value = getFieldValue(data, fields, mapping.fieldId);
-    // For repeatable group row variants (e.g. "address_row_2"), fall back to the base field definition
-    const fieldDef = fields.find((f) => f.id === mapping.fieldId)
-      ?? fields.find((f) => f.id === mapping.fieldId.replace(ROW_SUFFIX_RE, ""));
     const isBoolean = fieldDef?.type === "checkbox"
       && !fieldDef.options?.length;
 
