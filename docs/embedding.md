@@ -1,9 +1,12 @@
 # Embedding CloudyForms
 
-CloudyForms can be embedded in any website — static or dynamic — via three
-methods: a direct **iframe**, the **JavaScript widget**, or a framework-specific
-helper such as a **Hugo shortcode**. All methods auto-resize the embedded form
-to eliminate scrollbars.
+CloudyForms can be embedded in any website — static or dynamic — via two
+rendering modes and several integration methods:
+
+| Mode | How it works | Best for |
+|------|-------------|----------|
+| **Iframe** (default) | Form renders inside an `<iframe>` with CloudyForms styling | JS widget embeds, standalone form pages |
+| **Headless** | Form fields render directly in your page's DOM — no iframe, no CloudyForms CSS | Hugo/SSG sites, anywhere you want the form to inherit your site's own styles |
 
 ---
 
@@ -12,25 +15,33 @@ to eliminate scrollbars.
 1. [Quick Start](#quick-start)
 2. [iframe Embed](#iframe-embed)
 3. [JavaScript Widget](#javascript-widget)
-4. [Hugo Static Sites](#hugo-static-sites)
-5. [Other Static Site Generators](#other-static-site-generators)
-6. [Customisation Options](#customisation-options)
-7. [postMessage API](#postmessage-api)
-8. [Content Security Policy (CSP)](#content-security-policy-csp)
-9. [Troubleshooting](#troubleshooting)
+4. [Headless Mode](#headless-mode)
+5. [Hugo Static Sites](#hugo-static-sites)
+6. [Other Static Site Generators](#other-static-site-generators)
+7. [Customisation Options](#customisation-options)
+8. [postMessage API](#postmessage-api)
+9. [Content Security Policy (CSP)](#content-security-policy-csp)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Quick Start
 
-The fastest way to embed a form on any page:
+**Iframe mode** — form renders with CloudyForms styling inside an iframe:
 
 ```html
 <script src="https://your-instance.pages.dev/api/embed/script.js" defer></script>
 <div data-cloudyforms="your-form-slug"></div>
 ```
 
-That's it. The script creates an auto-resizing iframe inside the `<div>`.
+**Headless mode** — form fields render directly in your page, inheriting your site's own CSS:
+
+```html
+<script src="https://your-instance.pages.dev/api/embed/script.js" defer></script>
+<div data-cloudyforms="your-form-slug" data-cf-headless></div>
+```
+
+The only difference is the `data-cf-headless` attribute. See [Headless Mode](#headless-mode) for details.
 
 You can also find ready-to-copy embed snippets inside the **Form Builder →
 Embed** tab for every form.
@@ -113,6 +124,90 @@ navigation.
 
 ---
 
+## Headless Mode
+
+Headless mode renders the form's fields as plain HTML directly into your page's
+DOM — no `<iframe>`, no CloudyForms stylesheet. Your site's existing CSS applies
+to `<input>`, `<label>`, `<select>`, `<textarea>` etc. just as it would for any
+other form on your site.
+
+### When to use headless
+
+- Your site has its own design system and you want the form to look native
+- You're using a static site generator (Hugo, Astro, Jekyll, Eleventy) and want
+  the form to inherit the site's typography and spacing
+- You want full control over form styling via your own CSS
+
+### When to use iframe (default)
+
+- You want the form to look exactly as designed in the CloudyForms form builder
+- You're embedding on a third-party site you don't control
+- You're using form branding (custom colours, logo) configured in the form builder
+
+### Enabling headless mode
+
+Add `data-cf-headless` to the container div:
+
+```html
+<script src="https://your-instance.pages.dev/api/embed/script.js" defer></script>
+<div data-cloudyforms="your-form-slug" data-cf-headless></div>
+```
+
+### Styling headless forms
+
+The script adds no styles of its own. Target the wrapper and its children with
+your own CSS:
+
+```css
+/* Target the form wrapper */
+[data-cloudyform] form { /* your form styles */ }
+
+/* Target fields */
+[data-cloudyform] .cf-field { margin-bottom: 1rem; }
+[data-cloudyform] label { display: block; font-weight: 600; }
+[data-cloudyform] input,
+[data-cloudyform] select,
+[data-cloudyform] textarea { width: 100%; padding: 0.5rem; }
+
+/* Success message */
+[data-cf-success] { color: green; }
+```
+
+### Programmatic headless API
+
+```js
+CloudyForms.embedHeadless('your-form-slug', '#my-container');
+```
+
+### Turnstile / bot protection
+
+You do not need to disable Turnstile when using headless mode. The public form
+(accessible directly at `/f/your-slug`) remains fully Turnstile-protected.
+Headless embed submissions are exempted automatically.
+
+**How it works:**
+
+1. When the embed script fetches `GET /api/embed/form/:slug` to load the form
+   definition, the server mints a short-lived signed token
+   (`embedToken`, valid for 1 hour) scoped to that form slug.
+2. The token is included automatically in the submission payload when the user
+   submits the headless form.
+3. The server verifies the token's signature and slug before skipping the
+   Turnstile check. An invalid, expired, or mismatched token falls back to
+   requiring a Turnstile challenge.
+
+Bots targeting `POST /api/responses/submit/:slug` directly never receive a
+valid `embedToken` (it is only issued by the authenticated form-fetch endpoint),
+so they still face the full Turnstile challenge.
+
+### Supported field types in headless mode
+
+All field types are supported: text, email, phone, number, date, textarea,
+select, multiselect, radio, checkbox, file upload, star rating, scale/slider,
+signature (canvas), heading, paragraph, divider, and hidden fields.
+
+---
+
 ## Hugo Static Sites
 
 Hugo is a popular static site generator often hosted on Cloudflare Pages. The
@@ -133,13 +228,15 @@ layouts/shortcodes/cloudyforms.html
 ```
 
 ```html
-{{- $slug  := .Get "slug" | default (.Get 0) -}}
-{{- $theme := .Get "theme" | default "" -}}
-{{- $base  := site.Params.cloudyformsUrl | default "https://your-instance.pages.dev" -}}
+{{- $slug     := .Get "slug" | default (.Get 0) -}}
+{{- $theme    := .Get "theme" | default "" -}}
+{{- $headless := .Get "headless" | default "true" -}}
+{{- $base     := site.Params.cloudyformsUrl | default "https://your-instance.pages.dev" -}}
 
 {{- if $slug -}}
 <div
   data-cloudyforms="{{ $slug }}"
+  {{- if eq $headless "true" }} data-cf-headless{{ end }}
   {{- if $theme }} data-theme="{{ $theme }}"{{ end }}
   style="min-height:200px;"
 ></div>
@@ -153,6 +250,14 @@ layouts/shortcodes/cloudyforms.html
   <!-- cloudyforms shortcode: missing "slug" parameter -->
 {{- end -}}
 ```
+
+> **Headless is the default for Hugo.** The shortcode uses headless mode by
+> default so the form inherits your site's CSS. To use the iframe mode instead,
+> pass `headless="false"`:
+>
+> ```markdown
+> {{</* cloudyforms slug="contact" headless="false" */>}}
+> ```
 
 **2. (Optional) Set your CloudyForms URL in `hugo.toml` / `config.toml`**
 
@@ -258,10 +363,15 @@ the Hugo shortcode above is just a convenience wrapper.
 ```astro
 ---
 // src/components/CloudyForm.astro
-const { slug, theme } = Astro.props;
+const { slug, theme, headless = true } = Astro.props;
 const base = import.meta.env.PUBLIC_CLOUDYFORMS_URL ?? 'https://your-instance.pages.dev';
 ---
-<div data-cloudyforms={slug} data-theme={theme ?? ''} style="min-height:200px;"></div>
+<div
+  data-cloudyforms={slug}
+  data-theme={theme ?? ''}
+  data-cf-headless={headless ? '' : undefined}
+  style="min-height:200px;"
+></div>
 <script src={`${base}/api/embed/script.js`} defer></script>
 ```
 
@@ -269,7 +379,12 @@ const base = import.meta.env.PUBLIC_CLOUDYFORMS_URL ?? 'https://your-instance.pa
 
 ```html
 {% assign slug = include.slug %}
-<div data-cloudyforms="{{ slug }}" style="min-height:200px;"></div>
+{% assign headless = include.headless | default: true %}
+<div
+  data-cloudyforms="{{ slug }}"
+  {% if headless %}data-cf-headless{% endif %}
+  style="min-height:200px;"
+></div>
 <script src="https://your-instance.pages.dev/api/embed/script.js" defer></script>
 ```
 
@@ -353,8 +468,11 @@ in your Hugo project:
 | Problem | Solution |
 |---|---|
 | Form doesn't appear | Check the browser console for errors. Verify the form slug is correct and the form is published. |
+| Shortcode renders as literal text | The shortcode file is missing. Create `layouts/shortcodes/cloudyforms.html` in your Hugo site with the content from [Option A](#option-a--hugo-shortcode-recommended) above. |
 | iframe has scrollbars | Ensure the resize `<script>` is loaded (or use the JS widget which handles this automatically). |
 | Raw HTML stripped in Hugo | Enable `markup.goldmark.renderer.unsafe = true` in `hugo.toml`, or use the shortcode approach instead. |
-| Form doesn't load after navigation | The JS widget's `MutationObserver` should handle this. If using a custom SPA router, call `CloudyForms.embed(slug, selector)` manually after navigation. |
+| Headless form has no styling | Expected — headless mode renders unstyled HTML. Add CSS targeting `[data-cloudyform] input` etc. to your site's stylesheet. |
+| Headless form returns "Turnstile token required" | The embed token was not included in the submission. This should not happen in normal use — check that the form is being loaded via `GET /api/embed/form/:slug` before submission (i.e. the headless script is initialising correctly). |
+| Form doesn't load after navigation | The JS widget's `MutationObserver` should handle this. If using a custom SPA router, call `CloudyForms.embed(slug, selector)` or `CloudyForms.embedHeadless(slug, selector)` manually after navigation. |
 | CORS error in console | Embed routes allow all origins by default. If you see CORS errors, check that your CloudyForms Worker is deployed and accessible. |
 | CSP blocks script/iframe | Add the CloudyForms origin to your site's `frame-src` and `script-src` CSP directives. |

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { generateId } from "../lib/auth";
+import { verifyEmbedToken } from "./embed";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware } from "../middleware/auth";
 import { verifyTurnstile } from "../lib/turnstile";
@@ -129,11 +130,12 @@ const submitSchema = z.object({
   data: z.record(z.unknown()),
   turnstileToken: z.string().optional(),
   accessCode: z.string().optional(),
+  embedToken: z.string().optional(),
 });
 
 responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) => {
   const { formSlug } = c.req.param();
-  const { data, turnstileToken, accessCode } = c.req.valid("json");
+  const { data, turnstileToken, accessCode, embedToken } = c.req.valid("json");
   console.log(`[RESPONSES] Submission attempt slug=${formSlug}`);
 
   const form = await dbQueryFirst<FormRow>(
@@ -178,15 +180,24 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
     }
   }
 
-  // Turnstile verification
+  // Turnstile verification — bypassed for verified headless embed submissions.
+  // The embedToken is a short-lived JWT minted by /api/embed/form/:slug and
+  // never exposed to the public form page, so it cannot be replayed by bots
+  // targeting the standalone form.
   if (settings.enableTurnstile) {
-    if (!turnstileToken) {
-      return c.json({ error: "Turnstile token required" }, 400);
-    }
-    const ip = c.req.header("CF-Connecting-IP");
-    const valid = await verifyTurnstile(turnstileToken, c.env.TURNSTILE_SECRET_KEY, ip);
-    if (!valid) {
-      return c.json({ error: "Turnstile verification failed" }, 400);
+    const isHeadlessEmbed = embedToken
+      ? await verifyEmbedToken(embedToken, formSlug, c.env.JWT_SECRET)
+      : false;
+
+    if (!isHeadlessEmbed) {
+      if (!turnstileToken) {
+        return c.json({ error: "Turnstile token required" }, 400);
+      }
+      const ip = c.req.header("CF-Connecting-IP");
+      const valid = await verifyTurnstile(turnstileToken, c.env.TURNSTILE_SECRET_KEY, ip);
+      if (!valid) {
+        return c.json({ error: "Turnstile verification failed" }, 400);
+      }
     }
   }
 

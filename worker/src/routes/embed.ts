@@ -28,10 +28,30 @@
  */
 
 import { Hono } from "hono";
+import { SignJWT, jwtVerify } from "jose";
 import { dbQueryFirst } from "../lib/db";
 import { uploadFile } from "../lib/r2";
 import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
+
+/** Mint a short-lived token proving this request came via a headless embed fetch. */
+async function mintEmbedToken(slug: string, secret: string): Promise<string> {
+  return new SignJWT({ slug, purpose: "headless-embed" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(new TextEncoder().encode(secret));
+}
+
+/** Verify an embed token. Returns true only if valid, not expired, and slug matches. */
+export async function verifyEmbedToken(token: string, slug: string, secret: string): Promise<boolean> {
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    return payload.purpose === "headless-embed" && payload.slug === slug;
+  } catch {
+    return false;
+  }
+}
 
 export const embedRoutes = new Hono<{ Bindings: Bindings }>();
 
@@ -388,6 +408,7 @@ async function renderForm(slug,container){
 
   var form_def=await res.json();
   container.removeAttribute('data-cf-loading');
+  var embedToken=form_def.embedToken||'';
 
   var formEl=el('form',{'data-cf-form':slug,'novalidate':'novalidate'});
 
@@ -437,7 +458,7 @@ async function renderForm(slug,container){
       return;
     }
 
-    var payload={data:data};
+    var payload={data:data,embedToken:embedToken||undefined};
     var r;
     try{
       r=await fetch(BASE+'/api/responses/submit/'+encodeURIComponent(slug),{
@@ -615,6 +636,11 @@ embedRoutes.get("/form/:slug", async (c) => {
   try { settings = JSON.parse(form.settings ?? "{}"); } catch { /* */ }
   try { branding = JSON.parse(form.branding ?? "{}"); } catch { /* */ }
 
+  // Mint a short-lived token so the headless submit can bypass Turnstile.
+  // Only the worker can verify this — a bot hitting the public form directly
+  // never receives one.
+  const embedToken = await mintEmbedToken(slug, c.env.JWT_SECRET);
+
   return c.json({
     id: form.id,
     title: form.title,
@@ -623,6 +649,7 @@ embedRoutes.get("/form/:slug", async (c) => {
     fields,
     settings,
     branding,
+    embedToken,
   });
 });
 

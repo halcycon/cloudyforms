@@ -111,24 +111,37 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
 <script src="${scriptSrc}" defer></script>
 
 <!-- Step 2: place this where you want the form to appear -->
-<div data-cloudyforms="${formSlug}"></div>`;
+<!-- Default: renders inside an iframe with CloudyForms styling -->
+<div data-cloudyforms="${formSlug}"></div>
 
-  const jsApiSnippet = `<!-- Or use the JavaScript API for programmatic embedding -->
+<!-- Headless: renders fields directly in your page, inheriting your site's CSS -->
+<div data-cloudyforms="${formSlug}" data-cf-headless></div>`;
+
+  const jsApiSnippet = `<!-- JavaScript API: iframe mode (default) -->
 <script src="${scriptSrc}" defer></script>
 <div id="my-form-container"></div>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     CloudyForms.embed('${formSlug}', '#my-form-container');
   });
+</script>
+
+<!-- JavaScript API: headless mode (inherits your site's CSS) -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    CloudyForms.embedHeadless('${formSlug}', '#my-form-container');
+  });
 </script>`;
 
   const hugoShortcodeFile = `{{/* layouts/shortcodes/cloudyforms.html */}}
-{{- $slug  := .Get "slug" | default (.Get 0) -}}
-{{- $theme := .Get "theme" | default "" -}}
-{{- $base  := site.Params.cloudyformsUrl | default "${origin}" -}}
+{{- $slug     := .Get "slug" | default (.Get 0) -}}
+{{- $theme    := .Get "theme" | default "" -}}
+{{- $headless := .Get "headless" | default "true" -}}
+{{- $base     := site.Params.cloudyformsUrl | default "${origin}" -}}
 {{- if $slug -}}
 <div
   data-cloudyforms="{{ $slug }}"
+  {{- if eq $headless "true" }} data-cf-headless{{ end }}
   {{- if $theme }} data-theme="{{ $theme }}"{{ end }}
   style="min-height:200px;"
 ></div>
@@ -139,6 +152,8 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
 {{- end -}}`;
 
   const hugoUsageSnippet = `{{</* cloudyforms slug="${formSlug}" */>}}`;
+
+  const hugoIframeUsageSnippet = `{{</* cloudyforms slug="${formSlug}" headless="false" */>}}`;
 
   return (
     <div className="space-y-4">
@@ -186,12 +201,17 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
           {/* JS widget */}
           <TabsContent value="js" className="mt-3 space-y-3">
             <p className="text-xs text-gray-500">
-              Load the CloudyForms script once per page, then use the{' '}
+              Load the CloudyForms script once per page, then place a{' '}
               <code className={cn('rounded bg-gray-100 px-1 font-mono text-[11px]')}>
                 data-cloudyforms
               </code>{' '}
-              attribute or the JavaScript API to embed forms anywhere.
+              div wherever you want the form to appear.
             </p>
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-1">
+              <p><strong>Two rendering modes:</strong></p>
+              <p><strong>Default (iframe)</strong> — form renders inside an iframe with CloudyForms styling.</p>
+              <p><strong>Headless</strong> — add <code className="rounded bg-amber-100 px-1 font-mono">data-cf-headless</code> to render fields directly in your page, inheriting your site's own CSS.</p>
+            </div>
             <CodeBlock code={jsSnippet} language="html" />
             <details className="text-xs">
               <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
@@ -213,6 +233,12 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
               Create a reusable Hugo shortcode, then embed forms from any markdown
               content file. Works with Turbo, PJAX, and other SPA-like navigation.
             </p>
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+              <strong>Headless by default.</strong> The shortcode renders form fields directly
+              in your page so they inherit your site's own CSS — no iframe, no CloudyForms
+              styling. Pass <code className="rounded bg-amber-100 px-1 font-mono">headless="false"</code> to
+              use the iframe mode instead.
+            </div>
             <div className="space-y-1">
               <p className="text-xs font-medium text-gray-600">
                 1. Save this as <code className="rounded bg-gray-100 px-1 font-mono text-[11px]">layouts/shortcodes/cloudyforms.html</code>
@@ -227,16 +253,22 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
             </div>
             <details className="text-xs">
               <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-                Other static site generators
+                Use iframe mode instead (CloudyForms styling)
+              </summary>
+              <div className="mt-2 space-y-2">
+                <CodeBlock code={hugoIframeUsageSnippet} language="markdown" />
+              </div>
+            </details>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+                Other static site generators (Astro, Jekyll, Eleventy…)
               </summary>
               <div className="mt-2 space-y-2">
                 <p className="text-xs text-gray-500">
-                  The JS Widget approach works with any SSG (Astro, Jekyll,
-                  Eleventy, Gatsby, etc.). The embed script automatically detects
-                  new <code className="rounded bg-gray-100 px-1 font-mono text-[11px]">data-cloudyforms</code> elements
-                  added to the DOM — even after client-side navigation.
+                  The JS Widget tab's snippet works with any SSG. Add{' '}
+                  <code className="rounded bg-gray-100 px-1 font-mono text-[11px]">data-cf-headless</code>{' '}
+                  to inherit your site's CSS, or omit it for the iframe mode.
                 </p>
-                <CodeBlock code={jsSnippet} language="html" />
               </div>
             </details>
             <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700">
@@ -249,7 +281,7 @@ export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodePr
               >
                 docs/embedding.md
               </a>{' '}
-              for full Hugo setup instructions including <code className="font-mono">hugo.toml</code> configuration.
+              for full setup instructions including <code className="font-mono">hugo.toml</code> configuration.
             </div>
           </TabsContent>
         </Tabs>
