@@ -43,8 +43,11 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
-        run: npm run build
-
+        run: |
+          npm run build
+          WORKER_BASE="${VITE_API_URL%/api}"
+          printf '/api/*\t%s/api/:splat\t200\n/health\t%s/health\t200\n' "$WORKER_BASE" "$WORKER_BASE" > dist/_redirects
+          
       - name: Deploy to Cloudflare Pages (production)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
