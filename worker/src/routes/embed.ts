@@ -142,9 +142,11 @@ window.CloudyForms.embed=function(slug,selector,opts){
 }
 
 embedRoutes.get("/script.js", (c) => {
-  // Determine canonical base URL from request
+  // Determine canonical base URL from request.
+  // X-Forwarded-Host is set by the Pages Function proxy so the generated
+  // script points to the custom domain, not the workers.dev URL.
   const proto = c.req.header("X-Forwarded-Proto") ?? "https";
-  const host = c.req.header("Host") ?? "localhost";
+  const host = c.req.header("X-Forwarded-Host") ?? c.req.header("Host") ?? "localhost";
   const baseUrl = `${proto}://${host}`;
 
   const script = buildEmbedScript(baseUrl);

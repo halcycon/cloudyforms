@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-FROM_EMAIL = "noreply@cloudyforms.example.com"
+FROM_EMAIL = "noreply@thecuckoocamp.co.uk"
 # Comma-separated list of allowed CORS origins for the management API.
 # Use "*" to allow all (fine for public deployments; tighten in production).
 # Embed/public routes always allow cross-origin requests regardless of this value.
@@ -17,7 +17,7 @@ ALLOWED_ORIGINS = "*"
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudyforms"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "0eb3a121-b2fc-45f9-bd8b-81ac4d3cb6a5"
 
 [[r2_buckets]]
 binding = "R2"
