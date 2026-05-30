@@ -61,6 +61,41 @@ body {
   outline: none !important;
 }
 
+/* Public / embedded form surface — dark theme must style the card, not just the page */
+.cf-form-surface[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.cf-form-surface[data-theme="dark"] textarea,
+.cf-form-surface[data-theme="dark"] select {
+  background-color: #1b1f2a;
+  border-color: #2c3756;
+  color: #eef3ff;
+}
+
+.cf-form-surface[data-theme="dark"] input::placeholder,
+.cf-form-surface[data-theme="dark"] textarea::placeholder {
+  color: #6b7280;
+}
+
+.cf-form-surface[data-theme="dark"] .text-gray-900,
+.cf-form-surface[data-theme="dark"] .text-gray-700,
+.cf-form-surface[data-theme="dark"] .text-gray-600 {
+  color: inherit;
+}
+
+.cf-form-surface[data-theme="dark"] .text-gray-500,
+.cf-form-surface[data-theme="dark"] .text-gray-400 {
+  color: #a9b4cf;
+}
+
+.cf-form-surface[data-theme="dark"] .border-gray-200,
+.cf-form-surface[data-theme="dark"] .border-gray-300 {
+  border-color: #2c3756;
+}
+
+.cf-form-surface[data-theme="dark"] .bg-gray-50 {
+  background-color: #1b1f2a;
+  color: #a9b4cf;
+}
+
 /* Signature canvas */
 .signature-canvas {
   touch-action: none;

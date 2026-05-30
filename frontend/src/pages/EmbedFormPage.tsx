@@ -22,6 +22,7 @@ import type { Form } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { resolveFormAppearance, getFormPrimaryColor } from '@/lib/formBranding';
 import { FormFieldRenderer } from '@/components/FormRenderer/FormField';
 import { TurnstileWidget } from '@/components/FormRenderer/TurnstileWidget';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,7 @@ export default function EmbedFormPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const forceTransparent = searchParams.get('bg') === 'transparent';
-  const theme = searchParams.get('theme') ?? 'light';
+  const themeParam = searchParams.get('theme');
 
   // Report height to parent whenever content changes
   useEffect(() => {
@@ -101,23 +102,29 @@ export default function EmbedFormPage() {
   // Apply branding colours as CSS variables
   useEffect(() => {
     if (!form?.branding) return;
-    const { primaryColor, backgroundColor, textColor } = form.branding;
+    const surface = resolveFormAppearance(form.branding, themeParam);
+    const primaryColor = getFormPrimaryColor(form.branding);
     const root = document.documentElement;
     if (primaryColor) {
-      // Convert hex to RGB for Tailwind CSS variable format
       const hex = primaryColor.replace('#', '');
       const r = parseInt(hex.slice(0, 2), 16);
       const g = parseInt(hex.slice(2, 4), 16);
       const b = parseInt(hex.slice(4, 6), 16);
       root.style.setProperty('--primary', `${r} ${g} ${b}`);
     }
-    if (backgroundColor && !forceTransparent) {
-      document.body.style.backgroundColor = backgroundColor;
+    if (!forceTransparent) {
+      document.body.style.backgroundColor = surface.pageBackground;
     }
-    if (textColor) {
-      root.style.setProperty('--foreground', textColor);
-    }
-  }, [form, forceTransparent]);
+    root.style.setProperty('--foreground', surface.textColor);
+  }, [form, forceTransparent, themeParam]);
+
+  const surface = form ? resolveFormAppearance(form.branding, themeParam) : null;
+
+  const bgClass = forceTransparent
+    ? 'bg-transparent'
+    : surface?.isDark
+      ? 'text-white'
+      : 'bg-white';
 
   async function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -172,12 +179,6 @@ export default function EmbedFormPage() {
       setSubmitting(false);
     }
   }
-
-  const bgClass = forceTransparent
-    ? 'bg-transparent'
-    : theme === 'dark'
-      ? 'bg-gray-900 text-white'
-      : 'bg-white';
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (state === 'loading') {
@@ -256,10 +257,14 @@ export default function EmbedFormPage() {
   }
 
   // ── Ready – render form ───────────────────────────────────────────────────
-  if (!form) return null;
+  if (!form || !surface) return null;
 
   return (
-    <div ref={containerRef} className={cn('p-4 sm:p-6', bgClass)}>
+    <div
+      ref={containerRef}
+      className={cn('p-4 sm:p-6', bgClass)}
+      style={forceTransparent ? undefined : { backgroundColor: surface.pageBackground, color: surface.textColor }}
+    >
       {/* Form header */}
       <div className="mb-6">
         {form.branding.logoUrl && (
@@ -269,17 +274,23 @@ export default function EmbedFormPage() {
             className="h-8 object-contain mb-4"
           />
         )}
-        <h1 className={cn('text-xl font-bold', theme === 'dark' ? 'text-white' : 'text-gray-900')}>
+        <h1 className="text-xl font-bold" style={{ color: surface.textColor }}>
           {form.title}
         </h1>
         {form.description && (
-          <p className={cn('mt-1 text-sm', theme === 'dark' ? 'text-gray-300' : 'text-gray-500')}>
+          <p className="mt-1 text-sm" style={{ color: surface.mutedTextColor }}>
             {form.description}
           </p>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <form
+        onSubmit={handleSubmit}
+        className="cf-form-surface space-y-4"
+        data-theme={surface.isDark ? 'dark' : 'light'}
+        style={{ color: surface.textColor }}
+        noValidate
+      >
         {form.fields.map((field) => (
           <FormFieldRenderer
             key={field.id}

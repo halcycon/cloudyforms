@@ -6,6 +6,7 @@ import { responses } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { FormFieldRenderer } from './FormField';
 import { TurnstileWidget } from './TurnstileWidget';
+import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
 import { Plus, Minus } from 'lucide-react';
 
 export type FormRendererMode = 'public' | 'edit' | 'prefill';
@@ -493,9 +494,8 @@ export function FormRenderer({
     });
   }, [form.fields, form.staticValues, fieldValues]);
 
-  const bgColor = form.branding.backgroundColor ?? '#f9fafb';
-  const primaryColor = form.branding.primaryColor ?? '#4f46e5';
-  const textColor = form.branding.textColor ?? '#0f172a';
+  const surface = getFormSurfaceStyle(form.branding);
+  const primaryColor = getFormPrimaryColor(form.branding);
 
   function setFieldValue(id: string, value: unknown) {
     setFieldValues((prev) => ({ ...prev, [id]: value }));
@@ -629,7 +629,7 @@ export function FormRenderer({
     return (
       <div
         className="min-h-screen flex items-center justify-center p-4"
-        style={{ backgroundColor: bgColor }}
+        style={{ backgroundColor: surface.pageBackground }}
       >
         <div className="max-w-md w-full text-center space-y-4">
           <div
@@ -638,10 +638,10 @@ export function FormRenderer({
           >
             ✓
           </div>
-          <h2 className="text-2xl font-bold" style={{ color: textColor }}>
+          <h2 className="text-2xl font-bold" style={{ color: surface.textColor }}>
             {form.settings.successMessage || 'Thank you!'}
           </h2>
-          <p className="text-gray-500">Your response has been recorded.</p>
+          <p style={{ color: surface.mutedTextColor }}>Your response has been recorded.</p>
         </div>
       </div>
     );
@@ -654,7 +654,10 @@ export function FormRenderer({
   const renderedGroupButtons = new Set<string>();
 
   return (
-    <div className="min-h-screen py-8 px-4" style={{ backgroundColor: bgColor, color: textColor }}>
+    <div
+      className="min-h-screen py-8 px-4"
+      style={{ backgroundColor: surface.pageBackground, color: surface.textColor }}
+    >
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 text-center">
           {form.branding.logoUrl && (
@@ -664,13 +667,22 @@ export function FormRenderer({
               className="mx-auto mb-4 h-12 object-contain"
             />
           )}
-          <h1 className="text-3xl font-bold" style={{ color: textColor }}>{form.title}</h1>
+          <h1 className="text-3xl font-bold" style={{ color: surface.textColor }}>{form.title}</h1>
           {form.description && (
-            <p className="mt-2 text-gray-600">{form.description}</p>
+            <p className="mt-2" style={{ color: surface.mutedTextColor }}>{form.description}</p>
           )}
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+        <form
+          onSubmit={onSubmit}
+          className="cf-form-surface space-y-6 rounded-xl shadow-sm border p-6 sm:p-8"
+          data-theme={surface.isDark ? 'dark' : 'light'}
+          style={{
+            backgroundColor: surface.cardBackground,
+            color: surface.textColor,
+            borderColor: surface.borderColor,
+          }}
+        >
           {(() => {
             // Group visible fields into layout rows based on width
             const visibleFields = expandedFields.filter((f) =>
@@ -824,7 +836,7 @@ export function FormRenderer({
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-gray-400">
+        <p className="mt-4 text-center text-xs" style={{ color: surface.mutedTextColor }}>
           Powered by CloudyForms
         </p>
       </div>

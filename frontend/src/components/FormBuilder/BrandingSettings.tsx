@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSelector } from '@/components/ThemeSelector';
+import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
 
 interface BrandingSettingsProps {
   branding: BrandingConfig;
@@ -30,6 +31,9 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
   function update<K extends keyof BrandingConfig>(key: K, value: BrandingConfig[K]) {
     onChange({ ...branding, [key]: value });
   }
+
+  const surface = getFormSurfaceStyle(branding);
+  const primaryColor = getFormPrimaryColor(branding);
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-5">
@@ -157,18 +161,24 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-gray-900">Preview</h3>
         <div
-          className="rounded-lg p-4 space-y-3"
+          className="rounded-lg p-4 space-y-3 border"
           style={{
-            backgroundColor: branding.backgroundColor ?? '#f9fafb',
-            color: branding.textColor ?? '#0f172a',
+            backgroundColor: surface.cardBackground,
+            color: surface.textColor,
+            borderColor: surface.borderColor,
             fontFamily: branding.fontFamily,
           }}
         >
           <p className="font-bold text-lg">Form Preview</p>
-          <p className="text-sm opacity-70">Your form will appear with these styles</p>
+          <p className="text-sm" style={{ color: surface.mutedTextColor }}>
+            Your form will appear with these styles
+          </p>
           <button
-            className="px-4 py-2 rounded-md text-white text-sm font-medium"
-            style={{ backgroundColor: branding.primaryColor ?? '#4f46e5' }}
+            className="px-4 py-2 rounded-md text-sm font-medium"
+            style={{
+              backgroundColor: primaryColor,
+              color: surface.isDark ? '#0f1115' : '#ffffff',
+            }}
           >
             Submit Button
           </button>
