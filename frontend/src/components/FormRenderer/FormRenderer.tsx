@@ -4,10 +4,15 @@ import toast from 'react-hot-toast';
 import type { Form, FormField } from '@/lib/types';
 import { responses } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { FormFieldRenderer } from './FormField';
 import { TurnstileWidget } from './TurnstileWidget';
 import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
-import { Plus, Minus } from 'lucide-react';
+import { FormFieldLayout } from './FormFieldLayout';
+import {
+  expandFields,
+  getRepeatableGroups,
+  shouldShowField,
+  isEffectivelyOfficeUse,
+} from './formFieldUtils';
 
 export type FormRendererMode = 'public' | 'edit' | 'prefill';
 
@@ -26,75 +31,6 @@ interface FormRendererProps {
   submitLabel?: string;
   /** Draft token for pre-fill submission */
   draftToken?: string;
-}
-
-/** Collect all distinct repeatable group definitions from the form fields. */
-function getRepeatableGroups(fields: FormField[]): Map<string, { fields: FormField[]; maxRepetitions: number; minRepetitions: number }> {
-  const groups = new Map<string, { fields: FormField[]; maxRepetitions: number; minRepetitions: number }>();
-  for (const field of fields) {
-    if (!field.repeatableGroup) continue;
-    const gid = field.repeatableGroup.groupId;
-    if (!groups.has(gid)) {
-      groups.set(gid, {
-        fields: [],
-        maxRepetitions: field.repeatableGroup.maxRepetitions,
-        minRepetitions: field.repeatableGroup.minRepetitions ?? 1,
-      });
-    }
-    groups.get(gid)!.fields.push(field);
-  }
-  return groups;
-}
-
-/**
- * Expand form fields to include repeatable-group row instances.
- * Row 1 uses the original field IDs; rows 2+ use `{fieldId}_row_{n}`.
- * Only expand up to `visibleRows` for each group.
- */
-function expandFields(
-  fields: FormField[],
-  groupRowCounts: Record<string, number>,
-): FormField[] {
-  const groups = getRepeatableGroups(fields);
-  const processed = new Set<string>(); // group IDs already expanded
-  const result: FormField[] = [];
-
-  for (const field of fields) {
-    if (!field.repeatableGroup) {
-      result.push(field);
-      continue;
-    }
-
-    const gid = field.repeatableGroup.groupId;
-    if (processed.has(gid)) continue;
-    if (!field.repeatableGroup.isGroupStart) {
-      // Non-anchor field of a group – skip, will be handled by anchor
-      continue;
-    }
-
-    processed.add(gid);
-    const groupDef = groups.get(gid);
-    if (!groupDef) { result.push(field); continue; }
-
-    const rowCount = groupRowCounts[gid] ?? 1;
-    for (let row = 1; row <= rowCount; row++) {
-      for (const gField of groupDef.fields) {
-        if (row === 1) {
-          result.push(gField);
-        } else {
-          result.push({
-            ...gField,
-            id: `${gField.id}_row_${row}`,
-            label: `${gField.label} (${row})`,
-            // Only require the field if the original is required
-            required: gField.required,
-          });
-        }
-      }
-    }
-  }
-
-  return result;
 }
 
 function buildValidationSchema(
@@ -171,57 +107,6 @@ function buildValidationSchema(
     shape[field.id] = schema;
   }
   return z.object(shape);
-}
-
-function evaluateConditional(
-  logic: NonNullable<FormField['conditionalLogic']>,
-  formValues: Record<string, unknown>,
-): boolean {
-  const { action, conditions, logicType } = logic;
-
-  const results = conditions.map((cond) => {
-    const fieldValue = String(formValues[cond.fieldId] ?? '');
-    switch (cond.operator) {
-      case 'equals': return fieldValue === cond.value;
-      case 'not_equals': return fieldValue !== cond.value;
-      case 'contains': return fieldValue.includes(cond.value);
-      case 'not_contains': return !fieldValue.includes(cond.value);
-      case 'greater_than': return parseFloat(fieldValue) > parseFloat(cond.value);
-      case 'less_than': return parseFloat(fieldValue) < parseFloat(cond.value);
-      default: return true;
-    }
-  });
-
-  const conditionMet = logicType === 'all' ? results.every(Boolean) : results.some(Boolean);
-  return action === 'show' ? conditionMet : !conditionMet;
-}
-
-function shouldShowField(
-  field: FormField,
-  formValues: Record<string, unknown>,
-  allFields: FormField[],
-): boolean {
-  // If the field belongs to a conditional group, apply the group-start field's
-  // conditional logic to every member of the group.
-  if (field.conditionalGroup) {
-    const groupStart = allFields.find(
-      (f) =>
-        f.conditionalGroup?.groupId === field.conditionalGroup!.groupId &&
-        f.conditionalGroup.isGroupStart,
-    );
-    if (groupStart?.conditionalLogic) {
-      if (!evaluateConditional(groupStart.conditionalLogic, formValues)) return false;
-    }
-  }
-
-  // Then apply the field's own conditional logic (if any).
-  // For the group start field, skip — its conditional is already evaluated at
-  // the group level above and would otherwise be applied twice.
-  if (field.conditionalLogic && !field.conditionalGroup?.isGroupStart) {
-    if (!evaluateConditional(field.conditionalLogic, formValues)) return false;
-  }
-
-  return true;
 }
 
 /** Replace {{Label}} and {{static:Key}} placeholders in a formula with their values. */
@@ -517,17 +402,8 @@ export function FormRenderer({
   }
 
   /** Check if a field inherits office-use status from its conditional group's start field */
-  function isEffectivelyOfficeUse(field: FormField): boolean {
-    if (field.officeUse) return true;
-    if (field.conditionalGroup) {
-      const groupStart = form.fields.find(
-        (f) =>
-          f.conditionalGroup?.groupId === field.conditionalGroup!.groupId &&
-          f.conditionalGroup.isGroupStart,
-      );
-      if (groupStart?.officeUse) return true;
-    }
-    return false;
+  function isFieldOfficeUse(field: FormField): boolean {
+    return isEffectivelyOfficeUse(field, form.fields);
   }
 
   /** Determine if a field should be editable based on mode and role */
@@ -535,11 +411,11 @@ export function FormRenderer({
     // In public mode, all visible fields are editable (office-use fields are hidden)
     if (mode === 'public') return !field.readOnly;
     // In prefill mode, editor can edit non-office-use fields
-    if (mode === 'prefill') return !isEffectivelyOfficeUse(field) && !field.readOnly;
+    if (mode === 'prefill') return !isFieldOfficeUse(field) && !field.readOnly;
     // In edit mode, office-use fields are always editable.
     // Non-office-use fields are only editable if the user has permission.
     if (mode === 'edit') {
-      if (isEffectivelyOfficeUse(field)) return true;
+      if (isFieldOfficeUse(field)) return true;
       return canEditAllFields && !field.readOnly;
     }
     return !field.readOnly;
@@ -547,7 +423,7 @@ export function FormRenderer({
 
   /** Filter fields based on mode — office-use fields are hidden in public mode */
   function shouldIncludeField(field: FormField): boolean {
-    if (mode === 'public' && isEffectivelyOfficeUse(field)) return false;
+    if (mode === 'public' && isFieldOfficeUse(field)) return false;
     // In prefill mode for the pre-fill editor, show all fields but office-use ones are disabled
     return true;
   }
@@ -649,9 +525,6 @@ export function FormRenderer({
 
   // Expand fields to include repeatable group rows
   const expandedFields = expandFields(form.fields, groupRowCounts);
-  const groups = getRepeatableGroups(form.fields);
-  // Track which group IDs have already rendered their "add more" button
-  const renderedGroupButtons = new Set<string>();
 
   return (
     <div
@@ -683,134 +556,18 @@ export function FormRenderer({
             borderColor: surface.borderColor,
           }}
         >
-          {(() => {
-            // Group visible fields into layout rows based on width
-            const visibleFields = expandedFields.filter((f) =>
-              shouldIncludeField(f) && shouldShowField(f, fieldValues, form.fields)
-            );
-            const layoutRows: FormField[][] = [];
-            let currentRow: FormField[] = [];
-            let rowWidth = 0;
-
-            for (const field of visibleFields) {
-              const w = field.width ?? 100;
-              if (currentRow.length > 0 && rowWidth + w > 100) {
-                layoutRows.push(currentRow);
-                currentRow = [field];
-                rowWidth = w;
-              } else {
-                currentRow.push(field);
-                rowWidth += w;
-              }
-            }
-            if (currentRow.length > 0) layoutRows.push(currentRow);
-
-            return layoutRows.map((row) => {
-              const isMultiCol = row.length > 1 || (row[0]?.width ?? 100) < 100;
-              // When multiple fields are on the same row and some have descriptions,
-              // reserve description space on all fields so inputs align horizontally
-              const rowHasDescription = isMultiCol && row.some((f) =>
-                f.description && !['heading', 'paragraph', 'divider'].includes(f.type)
-              );
-
-              // Pre-compute group controls for this row so we can render them
-              // full-width below the field columns instead of inside a narrow column
-              let rowGroupControls: { groupId: string; groupDef: { maxRepetitions: number; minRepetitions: number } } | null = null;
-              for (const field of row) {
-                const baseId = field.id.replace(/_row_\d+$/, '');
-                const origField = form.fields.find((f) => f.id === baseId);
-                const gId = origField?.repeatableGroup?.groupId;
-                const gDef = gId ? groups.get(gId) : undefined;
-                if (gDef && gId && !renderedGroupButtons.has(`${gId}:${field.id}`)) {
-                  const lastFieldInGroup = gDef.fields[gDef.fields.length - 1];
-                  const rowMatch = field.id.match(/_row_(\d+)$/);
-                  const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : 1;
-                  const currentRowCount = groupRowCounts[gId] ?? 1;
-                  if (baseId === lastFieldInGroup.id && rowNum === currentRowCount) {
-                    rowGroupControls = { groupId: gId, groupDef: gDef };
-                    renderedGroupButtons.add(`${gId}:${field.id}`);
-                  }
-                }
-              }
-
-              const rowKey = row.map((f) => f.id).join('+');
-
-              return (
-                <div key={rowKey}>
-                  <div className={isMultiCol ? 'flex flex-wrap gap-x-4 gap-y-6' : undefined}>
-                  {row.map((field) => {
-                    const idx = expandedFields.indexOf(field);
-                    const baseId = field.id.replace(/_row_\d+$/, '');
-                    const origField = form.fields.find((f) => f.id === baseId);
-                    const groupId = origField?.repeatableGroup?.groupId;
-                    const groupDef = groupId ? groups.get(groupId) : undefined;
-
-                    const isNewGroupRow =
-                      !!groupDef &&
-                      field.id.includes('_row_') &&
-                      idx > 0 &&
-                      !!origField?.repeatableGroup?.isGroupStart &&
-                      baseId === groupDef.fields[0].id;
-
-                    const fieldWidth = field.width ?? 100;
-                    // Account for flex gap (gap-x-4 = 1rem) to prevent row overflow
-                    const gapRem = (row.length - 1) * 1;
-                    const widthStyle = isMultiCol
-                      ? { width: `calc(${fieldWidth}% - ${(fieldWidth / 100) * gapRem}rem)`, minWidth: 0 }
-                      : undefined;
-
-                    return (
-                      <div key={field.id} style={widthStyle} className={isMultiCol ? 'flex flex-col' : undefined}>
-                        {isNewGroupRow && (
-                          <hr className="border-gray-200 mb-4" />
-                        )}
-                        <FormFieldRenderer
-                          field={isFieldEditable(field) ? field : { ...field, readOnly: true }}
-                          value={fieldValues[field.id]}
-                          onChange={(val) => setFieldValue(field.id, val)}
-                          error={errors[field.id]}
-                          reserveDescriptionSpace={rowHasDescription}
-                          multiColumn={isMultiCol}
-                        />
-                      </div>
-                    );
-                  })}
-                  </div>
-                  {rowGroupControls && (
-                    <div className="flex items-center gap-2 mt-3">
-                      {(groupRowCounts[rowGroupControls.groupId] ?? 1) < rowGroupControls.groupDef.maxRepetitions && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => addGroupRow(rowGroupControls.groupId, rowGroupControls.groupDef.maxRepetitions)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add more
-                        </Button>
-                      )}
-                      {(groupRowCounts[rowGroupControls.groupId] ?? 1) > rowGroupControls.groupDef.minRepetitions && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs text-red-500 hover:text-red-600"
-                          onClick={() => removeGroupRow(rowGroupControls.groupId, rowGroupControls.groupDef.minRepetitions)}
-                        >
-                          <Minus className="h-3 w-3 mr-1" />
-                          Remove last
-                        </Button>
-                      )}
-                      <span className="text-xs text-gray-400">
-                        {groupRowCounts[rowGroupControls.groupId] ?? 1} / {rowGroupControls.groupDef.maxRepetitions}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            });
-          })()}
+          <FormFieldLayout
+            allFields={form.fields}
+            expandedFields={expandedFields}
+            formValues={fieldValues}
+            errors={errors}
+            onFieldChange={setFieldValue}
+            groupRowCounts={groupRowCounts}
+            onAddGroupRow={addGroupRow}
+            onRemoveGroupRow={removeGroupRow}
+            includeField={shouldIncludeField}
+            mapField={(field) => (isFieldEditable(field) ? field : { ...field, readOnly: true })}
+          />
 
           {form.settings.enableTurnstile && mode === 'public' && !draftToken && (
             <TurnstileWidget

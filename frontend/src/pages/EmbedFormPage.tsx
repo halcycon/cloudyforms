@@ -23,7 +23,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { resolveFormAppearance, getFormPrimaryColor } from '@/lib/formBranding';
-import { FormFieldRenderer } from '@/components/FormRenderer/FormField';
+import { FormFieldLayout } from '@/components/FormRenderer/FormFieldLayout';
+import {
+  expandFields,
+  getRepeatableGroups,
+  isEffectivelyOfficeUse,
+  shouldShowField,
+} from '@/components/FormRenderer/formFieldUtils';
 import { TurnstileWidget } from '@/components/FormRenderer/TurnstileWidget';
 import { cn } from '@/lib/utils';
 
@@ -67,21 +73,37 @@ export default function EmbedFormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
+  const [groupRowCounts, setGroupRowCounts] = useState<Record<string, number>>({});
 
   const forceTransparent = searchParams.get('bg') === 'transparent';
   const themeParam = searchParams.get('theme');
 
-  // Report height to parent whenever content changes
+  // Initialise repeatable group row counts when form loads
   useEffect(() => {
-    if (!slug) return;
+    if (!form) return;
+    const groups = getRepeatableGroups(form.fields);
+    const initial: Record<string, number> = {};
+    for (const [gid, def] of groups) {
+      initial[gid] = def.minRepetitions;
+    }
+    setGroupRowCounts(initial);
+  }, [form]);
+
+  // Report iframe height to parent — re-run when content changes
+  useEffect(() => {
+    if (!slug || state !== 'ready') return;
     const el = containerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
-      notifyParentResize(slug, el.scrollHeight);
-    });
+
+    const report = () => notifyParentResize(slug, el.scrollHeight);
+    report();
+
+    const observer = new ResizeObserver(report);
     observer.observe(el);
+    observer.observe(document.body);
+
     return () => observer.disconnect();
-  }, [slug]);
+  }, [slug, state, formData, groupRowCounts, form?.fields.length]);
 
   useEffect(() => {
     if (!slug) return;
@@ -145,8 +167,11 @@ export default function EmbedFormPage() {
   function validateFields(): boolean {
     if (!form) return false;
     const newErrors: Record<string, string> = {};
-    for (const field of form.fields) {
-      if (['heading', 'paragraph', 'divider'].includes(field.type)) continue;
+    const expanded = expandFields(form.fields, groupRowCounts);
+    for (const field of expanded) {
+      if (['heading', 'paragraph', 'divider', 'hidden', 'calculated'].includes(field.type)) continue;
+      if (isEffectivelyOfficeUse(field, form.fields)) continue;
+      if (!shouldShowField(field, formData, form.fields)) continue;
       if (field.required) {
         const value = formData[field.id];
         if (value === undefined || value === null || value === '') {
@@ -156,6 +181,20 @@ export default function EmbedFormPage() {
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  }
+
+  function addGroupRow(groupId: string, max: number) {
+    setGroupRowCounts((prev) => ({
+      ...prev,
+      [groupId]: Math.min((prev[groupId] ?? 1) + 1, max),
+    }));
+  }
+
+  function removeGroupRow(groupId: string, min: number) {
+    setGroupRowCounts((prev) => ({
+      ...prev,
+      [groupId]: Math.max((prev[groupId] ?? 1) - 1, min),
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -259,6 +298,8 @@ export default function EmbedFormPage() {
   // ── Ready – render form ───────────────────────────────────────────────────
   if (!form || !surface) return null;
 
+  const expandedFields = expandFields(form.fields, groupRowCounts);
+
   return (
     <div
       ref={containerRef}
@@ -291,22 +332,26 @@ export default function EmbedFormPage() {
         style={{ color: surface.textColor }}
         noValidate
       >
-        {form.fields.map((field) => (
-          <FormFieldRenderer
-            key={field.id}
-            field={field}
-            value={formData[field.id]}
-            error={errors[field.id]}
-            onChange={(value) => {
-              setFormData((prev) => ({ ...prev, [field.id]: value }));
-              if (errors[field.id]) setErrors((prev) => {
+        <FormFieldLayout
+          allFields={form.fields}
+          expandedFields={expandedFields}
+          formValues={formData}
+          errors={errors}
+          onFieldChange={(id, value) => {
+            setFormData((prev) => ({ ...prev, [id]: value }));
+            if (errors[id]) {
+              setErrors((prev) => {
                 const next = { ...prev };
-                delete next[field.id];
+                delete next[id];
                 return next;
               });
-            }}
-          />
-        ))}
+            }
+          }}
+          groupRowCounts={groupRowCounts}
+          onAddGroupRow={addGroupRow}
+          onRemoveGroupRow={removeGroupRow}
+          includeField={(field) => !isEffectivelyOfficeUse(field, form.fields)}
+        />
 
         {form.settings.enableTurnstile && (
           <TurnstileWidget
