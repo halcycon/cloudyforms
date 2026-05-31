@@ -31,6 +31,9 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    config.headers['X-CloudyForms-Site-Host'] = window.location.hostname;
+  }
   return config;
 });
 

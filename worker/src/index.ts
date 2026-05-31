@@ -61,7 +61,7 @@ app.use("*", async (c, next) => {
 
   return cors({
     origin: isAllowed ? origin || "*" : allowedOrigins[0] ?? "*",
-    allowHeaders: ["Content-Type", "Authorization", "X-Cloudyforms-Token"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Cloudyforms-Token", "X-CloudyForms-Site-Host"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     credentials: !isEmbedRoute, // no credentials for embed (cross-origin)
     maxAge: 86400,
