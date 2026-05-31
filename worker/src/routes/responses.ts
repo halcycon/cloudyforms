@@ -7,7 +7,12 @@ import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware } from "../middleware/auth";
 import { verifyTurnstile } from "../lib/turnstile";
 import { generateFingerprint } from "../lib/fingerprint";
-import { sendEmail, buildFormReceiptEmail, buildNotificationEmail } from "../lib/email";
+import {
+  sendOrgEmail,
+  getOrgEmailBranding,
+  renderFormReceiptEmail,
+  renderFormNotificationEmail,
+} from "../lib/email";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
 import { resolveOptionListReferences, serializeForm, type FormRow as FullFormRow } from "./forms";
@@ -246,28 +251,40 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
     .filter((f) => data[f.id] !== undefined)
     .map((f) => ({ label: f.label ?? f.id, value: data[f.id] }));
 
+  const branding = await getOrgEmailBranding(c.env.DB, form.org_id);
+
   // Send receipt email
   if (settings.sendReceiptEmail && submitterEmail) {
-    const { html, text } = buildFormReceiptEmail(form.title, id, fieldPairs);
-    sendEmail(
-      { to: submitterEmail, subject: `Receipt: ${form.title}`, html, text },
-      c.env
-    ).catch(() => {});
+    const { html, text } = renderFormReceiptEmail(branding, {
+      formTitle: form.title,
+      responseId: id,
+      fields: fieldPairs,
+    });
+    sendOrgEmail(c.env.DB, c.env, form.org_id, {
+      to: submitterEmail,
+      subject: `Receipt: ${form.title}`,
+      html,
+      text,
+      fromName: branding.orgName,
+    }).catch((err) => console.error("[EMAIL] Receipt send failed:", err));
   }
 
   // Send notification emails
   if (settings.notificationEmails.length > 0) {
-    const { html, text } = buildNotificationEmail(
-      form.title,
-      id,
-      submitterEmail ?? "",
-      fieldPairs
-    );
+    const { html, text } = renderFormNotificationEmail(branding, {
+      formTitle: form.title,
+      responseId: id,
+      submitterEmail: submitterEmail ?? undefined,
+      fields: fieldPairs,
+    });
     for (const email of settings.notificationEmails) {
-      sendEmail(
-        { to: email, subject: `New response: ${form.title}`, html, text },
-        c.env
-      ).catch(() => {});
+      sendOrgEmail(c.env.DB, c.env, form.org_id, {
+        to: email,
+        subject: `New response: ${form.title}`,
+        html,
+        text,
+        fromName: branding.orgName,
+      }).catch((err) => console.error("[EMAIL] Notification send failed:", err));
     }
   }
 

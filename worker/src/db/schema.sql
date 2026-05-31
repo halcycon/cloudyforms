@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   theme TEXT,                                -- JSON ThemeConfig {mode, preset}
   signups_enabled INTEGER DEFAULT 1,         -- registration on this org's custom domain
   allowed_signup_domains TEXT DEFAULT '[]',  -- JSON array; empty = any email domain
+  email_provider TEXT,                       -- null = platform default; cloudflare | mailchannels
+  email_from TEXT,                           -- null = platform default; e.g. noreply@example.com
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

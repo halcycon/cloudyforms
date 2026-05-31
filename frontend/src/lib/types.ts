@@ -32,6 +32,8 @@ export interface User {
   createdAt: string;
 }
 
+export type EmailProvider = 'cloudflare' | 'mailchannels';
+
 export interface Organization {
   id: string;
   name: string;
@@ -46,6 +48,10 @@ export interface Organization {
   signupsEnabled?: boolean;
   /** Email domains allowed to register via this org's custom domain (empty = all). */
   allowedSignupDomains?: string[];
+  /** Outbound email provider; null = use platform default. */
+  emailProvider?: EmailProvider | null;
+  /** Sender address for this org; null = use platform default. */
+  emailFrom?: string | null;
   createdAt: string;
 }
 

@@ -2,16 +2,24 @@ import { useEffect, useState } from 'react';
 import { admin } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Building2, FileText, MessageSquare, Globe, UserPlus, X, Palette } from 'lucide-react';
+import { Shield, Users, Building2, FileText, MessageSquare, Globe, UserPlus, X, Palette, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import { useTheme } from '@/components/ThemeProvider';
 import type { ThemeConfig } from '@/lib/themes';
+import type { EmailProvider } from '@/lib/types';
 import { DEFAULT_THEME } from '@/lib/themes';
 import toast from 'react-hot-toast';
 
@@ -32,6 +40,8 @@ export default function AdminPage() {
   const [newDomain, setNewDomain] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [systemDefaultTheme, setSystemDefaultTheme] = useState<ThemeConfig>(DEFAULT_THEME);
+  const [emailProvider, setEmailProvider] = useState<EmailProvider>('cloudflare');
+  const [emailFrom, setEmailFrom] = useState('');
   const { setSystemTheme } = useTheme();
 
   useEffect(() => {
@@ -50,6 +60,8 @@ export default function AdminPage() {
         if (settings.defaultTheme) {
           setSystemDefaultTheme(settings.defaultTheme);
         }
+        setEmailProvider(settings.emailProvider ?? 'cloudflare');
+        setEmailFrom(settings.emailFrom ?? '');
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -65,6 +77,21 @@ export default function AdminPage() {
       toast.success('Settings saved');
     } catch {
       toast.error('Failed to save settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function saveEmailSettings(provider: EmailProvider, from: string) {
+    setSavingSettings(true);
+    try {
+      await admin.updateSettings({
+        emailProvider: provider,
+        emailFrom: from.trim() || null,
+      });
+      toast.success('Email settings saved');
+    } catch {
+      toast.error('Failed to save email settings');
     } finally {
       setSavingSettings(false);
     }
@@ -204,6 +231,55 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Platform email defaults */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-gray-600" />
+            <CardTitle className="text-base">Email Settings</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Default outbound email for all organisations unless they override below.
+            Use Cloudflare Email Service when the sending domain is on Cloudflare; use Mailchannels for external domains (requires SPF).
+          </p>
+          <div className="space-y-1.5">
+            <Label>Default provider</Label>
+            <Select
+              value={emailProvider}
+              onValueChange={(v) => setEmailProvider(v as EmailProvider)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cloudflare">Cloudflare Email Service</SelectItem>
+                <SelectItem value="mailchannels">Mailchannels</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Default From address</Label>
+            <Input
+              placeholder='CloudyForms <noreply@thecuckoocamp.co.uk>'
+              value={emailFrom}
+              onChange={(e) => setEmailFrom(e.target.value)}
+            />
+            <p className="text-xs text-gray-500">
+              Plain address or <code className="text-[11px]">Name &lt;email@domain.com&gt;</code>. Falls back to worker EMAIL_FROM if empty.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => saveEmailSettings(emailProvider, emailFrom)}
+            disabled={savingSettings}
+          >
+            Save Email Settings
+          </Button>
         </CardContent>
       </Card>
 

@@ -30,6 +30,8 @@ const updateOrgSchema = z.object({
   }).optional().nullable(),
   signupsEnabled: z.boolean().optional(),
   allowedSignupDomains: z.array(z.string()).optional(),
+  emailProvider: z.enum(["cloudflare", "mailchannels"]).optional().nullable(),
+  emailFrom: z.string().max(200).optional().nullable(),
 });
 
 const addMemberSchema = z.object({
@@ -62,6 +64,8 @@ function mapOrgResponse(org: {
   theme: string | null;
   signups_enabled: number | null;
   allowed_signup_domains: string | null;
+  email_provider: string | null;
+  email_from: string | null;
   created_at?: string;
   updated_at?: string;
 }, memberRole?: string) {
@@ -76,6 +80,8 @@ function mapOrgResponse(org: {
     theme: org.theme ? JSON.parse(org.theme) : undefined,
     signupsEnabled: org.signups_enabled !== 0,
     allowedSignupDomains: parseSignupDomains(org.allowed_signup_domains),
+    emailProvider: org.email_provider as "cloudflare" | "mailchannels" | null,
+    emailFrom: org.email_from,
     role: memberRole,
     createdAt: org.created_at,
     updatedAt: org.updated_at,
@@ -227,6 +233,14 @@ orgs.on(["PUT", "PATCH"],
       sets.push("allowed_signup_domains = ?");
       params.push(JSON.stringify(updates.allowedSignupDomains));
     }
+    if (updates.emailProvider !== undefined) {
+      sets.push("email_provider = ?");
+      params.push(updates.emailProvider);
+    }
+    if (updates.emailFrom !== undefined) {
+      sets.push("email_from = ?");
+      params.push(updates.emailFrom);
+    }
 
     params.push(orgId);
 
@@ -241,6 +255,7 @@ orgs.on(["PUT", "PATCH"],
       logo_url: string | null; primary_color: string; secondary_color: string;
       custom_domain: string | null; theme: string | null;
       signups_enabled: number | null; allowed_signup_domains: string | null;
+      email_provider: string | null; email_from: string | null;
       updated_at: string;
     }>(c.env.DB, "SELECT * FROM organizations WHERE id = ?", [orgId]);
 

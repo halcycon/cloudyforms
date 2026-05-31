@@ -213,6 +213,8 @@ users.get("/admin/settings", authMiddleware, async (c) => {
     signupsEnabled: settings["signups_enabled"] ?? true,
     allowedSignupDomains: settings["allowed_signup_domains"] ?? [],
     defaultTheme: settings["default_theme"] ?? null,
+    emailProvider: settings["email_provider"] ?? "cloudflare",
+    emailFrom: settings["email_from"] ?? null,
   });
 });
 
@@ -223,6 +225,8 @@ const updateSettingsSchema = z.object({
     mode: z.enum(["light", "dark", "system"]),
     preset: z.enum(["default", "ocean", "sunset", "forest", "rose", "slate"]),
   }).optional().nullable(),
+  emailProvider: z.enum(["cloudflare", "mailchannels"]).optional(),
+  emailFrom: z.string().max(200).optional().nullable(),
 });
 
 // Update platform settings
@@ -263,6 +267,24 @@ users.put(
         `INSERT INTO platform_settings (key, value, updated_at) VALUES ('default_theme', ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
         [updates.defaultTheme ? JSON.stringify(updates.defaultTheme) : null, now]
+      );
+    }
+
+    if (updates.emailProvider !== undefined) {
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO platform_settings (key, value, updated_at) VALUES ('email_provider', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [updates.emailProvider, now]
+      );
+    }
+
+    if (updates.emailFrom !== undefined) {
+      await dbRun(
+        c.env.DB,
+        `INSERT INTO platform_settings (key, value, updated_at) VALUES ('email_from', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [updates.emailFrom, now]
       );
     }
 

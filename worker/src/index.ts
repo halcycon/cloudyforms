@@ -22,10 +22,19 @@ import { loggerMiddleware } from "./middleware/logger";
 export type Bindings = {
   DB: D1Database;
   R2: R2Bucket;
+  EMAIL?: SendEmail;
   JWT_SECRET: string;
   TURNSTILE_SECRET_KEY: string;
-  MAILCHANNELS_API_KEY: string;
-  FROM_EMAIL: string;
+  /** Sender address, e.g. `CloudyForms <noreply@thecuckoocamp.co.uk>` */
+  EMAIL_FROM?: string;
+  /** @deprecated Use EMAIL_FROM */
+  FROM_EMAIL?: string;
+  /** REST API fallback when EMAIL binding unavailable */
+  EMAIL_API_TOKEN?: string;
+  CF_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  /** Optional — authenticated Mailchannels sending for orgs using mailchannels provider */
+  MAILCHANNELS_API_KEY?: string;
   ALLOWED_ORIGINS: string;
   ENVIRONMENT: string;
 };

@@ -3,16 +3,28 @@ main = "src/index.ts"
 compatibility_date = "2024-07-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Import HTML email templates as text at build time
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
 [vars]
 ENVIRONMENT = "production"
-FROM_EMAIL = "noreply@thecuckoocamp.co.uk"
+EMAIL_FROM = "CloudyForms <noreply@thecuckoocamp.co.uk>"
 # Comma-separated list of allowed CORS origins for the management API.
 # Use "*" to allow all (fine for public deployments; tighten in production).
 # Embed/public routes always allow cross-origin requests regardless of this value.
 ALLOWED_ORIGINS = "*"
-# NOTE: Secrets (JWT_SECRET, TURNSTILE_SECRET_KEY, MAILCHANNELS_API_KEY)
-# must NEVER be added here. Use `wrangler secret put <NAME>` instead.
-# See README.md for details.
+# Email: Cloudflare Email Service (EMAIL binding) or Mailchannels per org/platform.
+# Optional secrets:
+#   wrangler secret put MAILCHANNELS_API_KEY   # Mailchannels orgs
+#   wrangler secret put EMAIL_API_TOKEN        # Cloudflare REST fallback
+#   wrangler secret put CF_ACCOUNT_ID
+# See docs/EMAIL.md.
+
+[[send_email]]
+name = "EMAIL"
 
 [[d1_databases]]
 binding = "DB"

@@ -108,7 +108,7 @@ export const orgs = {
 
   update: (
     id: string,
-    data: Partial<Pick<Organization, 'name' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'customDomain' | 'theme' | 'signupsEnabled' | 'allowedSignupDomains'>>,
+    data: Partial<Pick<Organization, 'name' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'customDomain' | 'theme' | 'signupsEnabled' | 'allowedSignupDomains' | 'emailProvider' | 'emailFrom'>>,
   ) => patch<Organization>(`/orgs/${id}`, data),
 
   delete: (id: string) => del<{ message: string }>(`/orgs/${id}`),
@@ -375,8 +375,20 @@ export const admin = {
   verifyDomain: (id: string) => patch<{ message: string }>(`/admin/domains/${id}/verify`),
   deleteDomain: (id: string) => del<{ message: string }>(`/admin/domains/${id}`),
   getSettings: () =>
-    get<{ signupsEnabled: boolean; allowedSignupDomains: string[]; defaultTheme: import('./types').Organization['theme'] | null }>('/users/admin/settings'),
-  updateSettings: (data: { signupsEnabled?: boolean; allowedSignupDomains?: string[]; defaultTheme?: import('./types').Organization['theme'] | null }) =>
+    get<{
+      signupsEnabled: boolean;
+      allowedSignupDomains: string[];
+      defaultTheme: import('./types').Organization['theme'] | null;
+      emailProvider: import('./types').EmailProvider;
+      emailFrom: string | null;
+    }>('/users/admin/settings'),
+  updateSettings: (data: {
+    signupsEnabled?: boolean;
+    allowedSignupDomains?: string[];
+    defaultTheme?: import('./types').Organization['theme'] | null;
+    emailProvider?: import('./types').EmailProvider;
+    emailFrom?: string | null;
+  }) =>
     apiClient.put('/users/admin/settings', data).then((r) => r.data as { message: string }),
 };
 

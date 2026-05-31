@@ -4,9 +4,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Globe, Database, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Save, Globe, Database, UserPlus, X, Mail } from 'lucide-react';
 import { orgs as orgsApi } from '@/lib/api';
-import type { Organization } from '@/lib/types';
+import type { EmailProvider, Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import type { ThemeConfig } from '@/lib/themes';
 import {
@@ -47,6 +54,8 @@ export default function OrgSettingsPage() {
   const [signupsEnabled, setSignupsEnabled] = useState(true);
   const [allowedSignupDomains, setAllowedSignupDomains] = useState<string[]>([]);
   const [newSignupDomain, setNewSignupDomain] = useState('');
+  const [emailProvider, setEmailProvider] = useState<'default' | EmailProvider>('default');
+  const [emailFrom, setEmailFrom] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(schema),
@@ -60,6 +69,8 @@ export default function OrgSettingsPage() {
         setOrgTheme(data.theme);
         setSignupsEnabled(data.signupsEnabled ?? true);
         setAllowedSignupDomains(data.allowedSignupDomains ?? []);
+        setEmailProvider(data.emailProvider ?? 'default');
+        setEmailFrom(data.emailFrom ?? '');
         reset({
           name: data.name,
           logoUrl: data.logoUrl ?? '',
@@ -84,10 +95,14 @@ export default function OrgSettingsPage() {
         theme: orgTheme,
         signupsEnabled,
         allowedSignupDomains,
+        emailProvider: emailProvider === 'default' ? null : emailProvider,
+        emailFrom: emailFrom.trim() || null,
       });
       setOrg(updated);
       setSignupsEnabled(updated.signupsEnabled ?? true);
       setAllowedSignupDomains(updated.allowedSignupDomains ?? []);
+      setEmailProvider(updated.emailProvider ?? 'default');
+      setEmailFrom(updated.emailFrom ?? '');
       toast.success('Settings saved');
     } catch {
       toast.error('Failed to save settings');
@@ -263,6 +278,51 @@ export default function OrgSettingsPage() {
                 ))}
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email settings */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Email Settings</CardTitle>
+          </div>
+          <CardDescription>
+            Outbound mail for invitations, form receipts, and admin notifications from this organisation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Email provider</Label>
+            <Select
+              value={emailProvider}
+              onValueChange={(v) => setEmailProvider(v as 'default' | EmailProvider)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Platform default</SelectItem>
+                <SelectItem value="cloudflare">Cloudflare Email Service</SelectItem>
+                <SelectItem value="mailchannels">Mailchannels</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose Mailchannels if this org&apos;s sending domain is not on Cloudflare Email Service.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>From address</Label>
+            <Input
+              placeholder="Leave empty for platform default"
+              value={emailFrom}
+              onChange={(e) => setEmailFrom(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              e.g. <code className="text-[11px]">Streatham Vale Baptist &lt;forms@svbc.org.uk&gt;</code> — overrides the platform sender for this org only.
+            </p>
           </div>
         </CardContent>
       </Card>

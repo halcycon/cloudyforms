@@ -67,7 +67,7 @@ cloudyforms/
 | File storage| Cloudflare R2                                                          |
 | Auth        | JWT (jose library), stored in localStorage                              |
 | Anti-spam   | Cloudflare Turnstile                                                   |
-| Email       | Mailchannels (free on Workers)                                         |
+| Email       | Cloudflare Email Service (see `docs/EMAIL.md`)                           |
 | Deployment  | Cloudflare Pages (frontend) + Cloudflare Workers (API)                 |
 
 ---
@@ -102,7 +102,7 @@ cloudyforms/
 
 ### Secrets
 
-- Worker secrets (`JWT_SECRET`, `TURNSTILE_SECRET_KEY`, `MAILCHANNELS_API_KEY`)
+- Worker secrets (`JWT_SECRET`, `TURNSTILE_SECRET_KEY`; optional `EMAIL_API_TOKEN`, `CF_ACCOUNT_ID`)
   are set via `wrangler secret put` — never in `wrangler.toml` or `.env` files.
 - Frontend env vars (`VITE_API_URL`, `VITE_TURNSTILE_SITE_KEY`) go in the
   Cloudflare Pages dashboard.

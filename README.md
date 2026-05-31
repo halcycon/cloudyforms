@@ -99,7 +99,7 @@ You can find my other projects and links here:
 | Kiosk mode | Token-based device registration, multi-form |
 | Cloudflare Turnstile | Anti-spam, no CAPTCHA |
 | File uploads | R2 storage + D1 blob for small files |
-| Email notifications | Mailchannels (free on Cloudflare Workers) |
+| Email notifications | Cloudflare Email Service (transactional) |
 | Webhooks | HMAC-signed payloads |
 | CSV / JSON export | Per-form or per-response |
 | Device fingerprinting | Duplicate submission detection |
@@ -123,7 +123,7 @@ You can find my other projects and links here:
 │   • D1 database  (SQLite)               │
 │   • R2 bucket    (file storage)         │
 │   • Turnstile    (anti-spam)            │
-│   • Mailchannels (email)                │
+│   • Email Service (transactional mail)   │
 └─────────────────────────────────────────┘
 ```
 
@@ -169,7 +169,8 @@ npx wrangler r2 bucket create cloudyforms-files
 # 7. Set secrets (these are stored securely by Cloudflare, NOT in your repo)
 npx wrangler secret put JWT_SECRET            # random 32+ char string
 npx wrangler secret put TURNSTILE_SECRET_KEY  # from Cloudflare dashboard
-npx wrangler secret put MAILCHANNELS_API_KEY  # optional
+npx wrangler secret put JWT_SECRET
+# Optional email REST fallback — see docs/EMAIL.md
 
 # 8. Deploy the worker
 cd worker && npx wrangler deploy
@@ -221,16 +222,34 @@ npx wrangler r2 bucket create cloudyforms-files
 4. Copy **Site Key** → you will add this as an environment variable in the Cloudflare Pages dashboard (see [Deploying via Cloudflare Dashboard](#deploying-via-cloudflare-dashboard-recommended)) or pass it at build time as `VITE_TURNSTILE_SITE_KEY`
 5. Copy **Secret Key** → `wrangler secret put TURNSTILE_SECRET_KEY`
 
-### Step 4 – Mailchannels (email)
+### Step 4 – Email (Cloudflare Email Service)
 
-Mailchannels is free for Workers. No API key needed for basic use if your domain has a valid SPF record. For authenticated sending: `wrangler secret put MAILCHANNELS_API_KEY`
+CloudyForms sends invitation, receipt, and notification mail via [Cloudflare Email Service](https://developers.cloudflare.com/email-service/). See **[docs/EMAIL.md](docs/EMAIL.md)** for full details.
 
-Also set in `wrangler.toml`:
+1. Enable sending on your domain:
 
-```toml
-[vars]
-FROM_EMAIL = "noreply@yourdomain.com"
-```
+   ```bash
+   npx wrangler email sending enable thecuckoocamp.co.uk
+   ```
+
+2. The worker `wrangler.toml` already includes the `EMAIL` send binding and default sender:
+
+   ```toml
+   [vars]
+   EMAIL_FROM = "CloudyForms <noreply@thecuckoocamp.co.uk>"
+
+   [[send_email]]
+   name = "EMAIL"
+   ```
+
+3. Optional REST API fallback (if not using the binding):
+
+   ```bash
+   npx wrangler secret put EMAIL_API_TOKEN
+   npx wrangler secret put CF_ACCOUNT_ID
+   ```
+
+HTML templates are in `worker/src/email-templates/` (invitation, form receipt, admin notification). Organisation name, logo, and primary colour are applied automatically.
 
 ### Step 5 – Set JWT secret
 
@@ -406,17 +425,21 @@ The Worker must still be deployed via `wrangler deploy` (or the `deploy-worker.y
 
 | Variable | Required | Description |
 |---|---|---|
-| `FROM_EMAIL` | Yes | Sender address for emails |
+| `EMAIL_FROM` | Yes | Sender, e.g. `CloudyForms <noreply@thecuckoocamp.co.uk>` |
 | `ALLOWED_ORIGINS` | Optional | Comma-separated CORS origins (default `*`) |
 | `ENVIRONMENT` | Optional | `development` enables verbose errors |
 
-**Secrets** (set via `wrangler secret put <NAME>`):
+**Secrets** (set via `wrangler secret put`):
 
 | Secret | Required | Description |
 |---|---|---|
-| `JWT_SECRET` | Yes | JWT signing secret (32+ chars) |
-| `TURNSTILE_SECRET_KEY` | Yes | Cloudflare Turnstile secret key |
-| `MAILCHANNELS_API_KEY` | Optional | Mailchannels authenticated sending |
+| `JWT_SECRET` | Yes | Token signing key |
+| `TURNSTILE_SECRET_KEY` | Yes | Turnstile server-side verification |
+| `EMAIL_API_TOKEN` | Optional | Cloudflare Email REST fallback |
+| `CF_ACCOUNT_ID` | Optional | With REST fallback |
+| `MAILCHANNELS_API_KEY` | Optional | Authenticated Mailchannels (orgs using mailchannels provider) |
+
+See **[docs/EMAIL.md](docs/EMAIL.md)** for email setup and HTML templates.
 
 ### Frontend
 
@@ -491,7 +514,7 @@ cd cloudyforms
 
 **Key points:**
 
-- No external SaaS – only Cloudflare primitives + optional Mailchannels
+- No external SaaS – only Cloudflare primitives (Email Service included)
 - One account can host multiple isolated deployments (different wrangler.toml / D1 databases)
 - First registered user automatically becomes super admin
 
@@ -506,7 +529,7 @@ cd cloudyforms
 | R2 storage | 10 GB | Pay as you go |
 | Custom domains via CNAME + Tunnel | Free | Free |
 | Custom Hostnames (SSL for SaaS) | No | Enterprise |
-| Email (Mailchannels) | Free | Free |
+| Email (Email Service) | Included | Included |
 | Turnstile | Free | Free |
 
 **Recommendation:** Free tier is sufficient for small-medium deployments. Workers Paid ($5/mo) for > 100k form views/day.
