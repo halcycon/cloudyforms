@@ -64,7 +64,7 @@ function DraggableFieldType({ config, onAdd }: DraggableFieldTypeProps) {
       {...listeners}
       onClick={() => onAdd(config.type)}
       className={cn(
-        'flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2',
+        'flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2',
         'cursor-grab active:cursor-grabbing select-none',
         'hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-colors',
         'text-sm font-medium text-gray-700',
@@ -94,7 +94,7 @@ export function FieldPalette({ onAddField, onAddFieldGroup }: FieldPaletteProps)
   }, [currentOrg?.id]);
 
   return (
-    <div className="h-full overflow-y-auto border-r border-gray-200 bg-gray-50">
+    <div className="h-full overflow-y-auto border-r border-border bg-muted">
       <div className="p-4">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
           Field Types

@@ -318,9 +318,9 @@ export function FormBuilder({ formId }: FormBuilderProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-screen flex-col bg-gray-100">
+      <div className="flex h-screen flex-col bg-muted">
         {/* Top bar */}
-        <div className="flex h-14 items-center gap-3 border-b border-gray-200 bg-white px-4 shadow-sm">
+        <div className="flex h-14 items-center gap-3 border-b border-border bg-card px-4 shadow-sm">
           <Button
             variant="ghost"
             size="icon"
@@ -336,7 +336,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
               const title = e.target.value;
               updateForm({ title });
             }}
-            className="w-64 border-0 bg-transparent text-base font-semibold shadow-none focus:ring-0 focus:bg-gray-50 rounded-md"
+            className="w-64 border-0 bg-transparent text-base font-semibold shadow-none focus:ring-0 focus:bg-accent rounded-md"
             placeholder="Form title"
           />
 
@@ -346,7 +346,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 href={`/f/${form.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
               >
                 <Eye className="h-4 w-4" />
                 Preview
@@ -388,7 +388,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
         <div className="flex flex-1 overflow-hidden">
           {/* Left: palette + tabs */}
           <div className={cn(
-            "flex-shrink-0 flex flex-col border-r border-gray-200 bg-white transition-all",
+            "flex-shrink-0 flex flex-col border-r border-border bg-card transition-all",
             activeTab === 'document' ? 'w-[540px]' : 'w-56'
           )}>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex flex-col h-full">
@@ -456,7 +456,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
           {/* Center: canvas */}
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="flex-1 overflow-hidden flex flex-col">
-              <div className="bg-gray-100 px-4 py-2 text-xs text-gray-400 border-b border-gray-200">
+              <div className="bg-muted px-4 py-2 text-xs text-muted-foreground border-b border-border">
                 {form.fields?.length ?? 0} fields · {form.slug ? `slug: ${form.slug}` : 'not saved yet'}
               </div>
               <FormCanvas
@@ -482,7 +482,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                 workflowEnabled={form.settings?.workflowEnabled}
               />
             ) : (
-              <div className="flex h-full items-center justify-center p-8 text-center text-gray-400 border-l border-gray-200">
+              <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground border-l border-border">
                 <div>
                   <Settings className="mx-auto h-8 w-8 mb-2 opacity-30" />
                   <p className="text-sm">Select a field to edit its properties</p>
@@ -495,7 +495,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
 
       <DragOverlay>
         {dragOverlayField && (
-          <div className="drag-overlay w-64 rounded-lg border-2 border-primary-400 bg-white p-4 shadow-xl">
+          <div className="drag-overlay w-64 rounded-lg border-2 border-primary-400 bg-card p-4 shadow-xl">
             <FieldPreview field={dragOverlayField} />
           </div>
         )}

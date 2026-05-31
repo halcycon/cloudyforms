@@ -9,15 +9,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   default:
-    'bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-600 shadow',
+    'bg-primary text-primary-foreground hover:opacity-90 focus-visible:ring-ring shadow',
   destructive:
-    'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600 shadow-sm',
+    'bg-destructive text-destructive-foreground hover:opacity-90 focus-visible:ring-destructive shadow-sm',
   outline:
-    'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus-visible:ring-primary-600 shadow-sm',
+    'border border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring shadow-sm',
   secondary:
-    'bg-gray-100 text-gray-900 hover:bg-gray-200 focus-visible:ring-gray-400 shadow-sm',
-  ghost: 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
-  link: 'text-primary-600 underline-offset-4 hover:underline',
+    'bg-muted text-foreground hover:bg-accent focus-visible:ring-ring shadow-sm',
+  ghost: 'text-foreground hover:bg-accent hover:text-accent-foreground',
+  link: 'text-primary underline-offset-4 hover:underline',
 };
 
 const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {
@@ -35,7 +35,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled ?? loading}
         className={cn(
           'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           'disabled:pointer-events-none disabled:opacity-50',
           variantClasses[variant],
           sizeClasses[size],

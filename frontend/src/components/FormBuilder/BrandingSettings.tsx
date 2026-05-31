@@ -39,7 +39,7 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
     <div className="h-full overflow-y-auto p-4 space-y-5">
       {/* Logo */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900">Logo</h3>
+        <h3 className="text-sm font-semibold text-foreground">Logo</h3>
         <div className="space-y-1.5">
           <Label>Logo URL</Label>
           <Input
@@ -64,7 +64,7 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
 
       {/* Colors */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900">Colors</h3>
+        <h3 className="text-sm font-semibold text-foreground">Colors</h3>
 
         <div className="space-y-1.5">
           <Label>Primary Color</Label>
@@ -125,7 +125,7 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
 
       {/* Typography */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900">Typography</h3>
+        <h3 className="text-sm font-semibold text-foreground">Typography</h3>
         <div className="space-y-1.5">
           <Label>Font Family</Label>
           <Select
@@ -159,7 +159,7 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
       {/* Preview */}
       <Separator />
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-gray-900">Preview</h3>
+        <h3 className="text-sm font-semibold text-foreground">Preview</h3>
         <div
           className="rounded-lg p-4 space-y-3 border"
           style={{

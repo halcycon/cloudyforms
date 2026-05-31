@@ -95,7 +95,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      <h1 className="text-2xl font-bold text-foreground">Settings</h1>
 
       <Tabs defaultValue="profile">
         <TabsList>
@@ -136,8 +136,8 @@ export default function SettingsPage() {
 
                 <Separator />
 
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Member since: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</p>
+                <div className="rounded-lg bg-muted p-3">
+                  <p className="text-xs text-muted-foreground">Member since: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</p>
                   {user?.isSuperAdmin && (
                     <p className="text-xs font-medium text-primary-600 mt-0.5">Super Admin</p>
                   )}

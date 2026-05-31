@@ -162,13 +162,13 @@ export function FieldEditor({ field, allFields, onChange, formId, orgId, workflo
   const showPermissionsSection = inheritsOfficeUse || field.officeUse || (!isLayout && workflowEnabled && workflowStages.length > 0);
 
   return (
-    <div className="h-full overflow-y-auto border-l border-gray-200 bg-white">
+    <div className="h-full overflow-y-auto border-l border-border bg-card">
       <div className="p-4 space-y-5">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+          <h3 className="text-sm font-semibold text-foreground mb-1">
             {field.type.charAt(0).toUpperCase() + field.type.slice(1)} Field
           </h3>
-          <p className="text-xs text-gray-400 font-mono">{field.id.slice(0, 8)}...</p>
+          <p className="text-xs text-muted-foreground font-mono">{field.id.slice(0, 8)}...</p>
         </div>
 
         <Separator />

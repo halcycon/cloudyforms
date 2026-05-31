@@ -113,7 +113,7 @@ export function Layout({ children }: LayoutProps) {
                 <DropdownMenuItem
                   key={org.id}
                   onClick={() => setCurrentOrg(org)}
-                  className={cn(currentOrg?.id === org.id && 'bg-gray-100')}
+                  className={cn(currentOrg?.id === org.id && 'bg-accent')}
                 >
                   {org.name}
                 </DropdownMenuItem>
@@ -219,14 +219,14 @@ export function Layout({ children }: LayoutProps) {
         <header className="flex h-16 items-center gap-4 px-4 lg:hidden" style={{ borderBottom: '1px solid rgb(var(--border))', backgroundColor: 'rgb(var(--card))' }}>
           <button
             onClick={() => setSidebarOpen(true)}
-            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
             <CloudLightning className="h-5 w-5 text-primary-600" />
-            <span className="font-bold text-gray-900">CloudyForms</span>
+            <span className="font-bold text-foreground">CloudyForms</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Avatar className="h-8 w-8">

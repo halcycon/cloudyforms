@@ -145,10 +145,10 @@ function SortableField({
       data-field-wrapper=""
       onClick={onSelect}
       className={cn(
-        'group relative rounded-lg border-2 bg-white p-4 cursor-pointer transition-colors',
+        'group relative rounded-lg border-2 bg-card p-4 cursor-pointer transition-colors',
         isSelected
           ? 'border-primary-500 shadow-sm'
-          : 'border-transparent hover:border-gray-200',
+          : 'border-transparent hover:border-border',
       )}
     >
       {/* Drag handle */}
@@ -242,7 +242,7 @@ export function FormCanvas({
         <div
           className={cn(
             'flex h-full min-h-[300px] flex-col items-center justify-center rounded-xl border-2 border-dashed text-center p-8 transition-colors',
-            isOver ? 'border-primary-400 bg-primary-50' : 'border-gray-200',
+            isOver ? 'border-primary-400 bg-primary-50 dark:bg-accent' : 'border-border',
           )}
         >
           <div className="mb-3 rounded-full bg-gray-100 p-4">

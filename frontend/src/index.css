@@ -37,6 +37,72 @@ body {
   color: rgb(var(--foreground));
 }
 
+/* App shell — map legacy Tailwind grays to theme tokens in dark mode */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  background-color: rgb(var(--card));
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: rgb(var(--muted));
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: rgb(var(--foreground));
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: rgb(var(--muted-foreground));
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: rgb(var(--border));
+}
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .focus\:bg-gray-100:focus,
+.dark .data-\[state=open\]\:bg-gray-100[data-state='open'] {
+  background-color: rgb(var(--accent));
+}
+
+.dark .hover\:text-gray-900:hover,
+.dark .focus\:text-gray-900:focus {
+  color: rgb(var(--foreground));
+}
+
+.dark .ring-offset-white {
+  --tw-ring-offset-color: rgb(var(--background));
+}
+
+.dark .placeholder\:text-gray-400::placeholder {
+  color: rgb(var(--muted-foreground));
+}
+
+.dark input:not([type='checkbox']):not([type='radio']),
+.dark textarea,
+.dark select {
+  background-color: rgb(var(--card));
+  border-color: rgb(var(--border));
+  color: rgb(var(--foreground));
+}
+
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-xl {
+  --tw-shadow-color: rgb(0 0 0 / 0.35);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
