@@ -9,6 +9,7 @@ import {
 } from "../lib/auth";
 import { dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware } from "../middleware/auth";
+import { emailMatchesAllowedDomains, resolveSignupSettings } from "../lib/signup";
 import type { Bindings } from "../index";
 
 const auth = new Hono<{ Bindings: Bindings }>();
@@ -40,17 +41,13 @@ const changePasswordSchema = z.object({
 
 // Public endpoint: check whether new signups are allowed
 auth.get("/signup-status", async (c) => {
-  const enabled = await dbQueryFirst<{ value: string }>(
-    c.env.DB,
-    "SELECT value FROM platform_settings WHERE key = 'signups_enabled'",
-  );
-  const domains = await dbQueryFirst<{ value: string }>(
-    c.env.DB,
-    "SELECT value FROM platform_settings WHERE key = 'allowed_signup_domains'",
-  );
+  const settings = await resolveSignupSettings(c.env.DB, c.get("domainOrgId"));
   return c.json({
-    signupsEnabled: enabled ? enabled.value === "true" : true,
-    allowedDomains: domains?.value ? JSON.parse(domains.value) as string[] : [],
+    signupsEnabled: settings.signupsEnabled,
+    allowedDomains: settings.allowedDomains,
+    orgId: settings.orgId,
+    orgName: settings.orgName,
+    scope: settings.scope,
   });
 });
 
@@ -59,30 +56,27 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
   const redacted = `***@${email.split("@")[1] ?? "?"}`;
   console.log(`[AUTH] Registration attempt email=${redacted}`);
 
-  // Check if signups are disabled
-  const signupsSetting = await dbQueryFirst<{ value: string }>(
-    c.env.DB,
-    "SELECT value FROM platform_settings WHERE key = 'signups_enabled'",
-  );
-  if (signupsSetting && signupsSetting.value === "false") {
-    console.log(`[AUTH] Registration blocked – signups disabled email=${redacted}`);
+  // Check signup policy for this host (platform vs custom-domain org)
+  const signupSettings = await resolveSignupSettings(c.env.DB, c.get("domainOrgId"));
+  if (!signupSettings.signupsEnabled) {
+    console.log(`[AUTH] Registration blocked – signups disabled email=${redacted} scope=${signupSettings.scope}`);
     return c.json({ error: "New account registration is currently disabled" }, 403);
   }
 
-  // Check allowed email domains
-  const domainsSetting = await dbQueryFirst<{ value: string }>(
-    c.env.DB,
-    "SELECT value FROM platform_settings WHERE key = 'allowed_signup_domains'",
-  );
-  if (domainsSetting?.value) {
-    const allowedDomains = JSON.parse(domainsSetting.value) as string[];
-    if (allowedDomains.length > 0) {
-      const emailDomain = email.toLowerCase().split("@")[1];
-      if (!emailDomain || !allowedDomains.some((d) => d.toLowerCase() === emailDomain)) {
-        console.log(`[AUTH] Registration blocked – domain not allowed email=${redacted}`);
-        return c.json({ error: "Registration is restricted to certain email domains" }, 403);
-      }
-    }
+  if (!emailMatchesAllowedDomains(email, signupSettings.allowedDomains)) {
+    console.log(`[AUTH] Registration blocked – domain not allowed email=${redacted} scope=${signupSettings.scope}`);
+    const domainHint =
+      signupSettings.allowedDomains.length > 0
+        ? signupSettings.allowedDomains.join(", ")
+        : undefined;
+    return c.json(
+      {
+        error: domainHint
+          ? `Registration is restricted to ${domainHint}`
+          : "Registration is restricted to certain email domains",
+      },
+      403,
+    );
   }
 
   const existing = await dbQueryFirst<{ id: string }>(

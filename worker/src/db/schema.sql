@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   secondary_color TEXT DEFAULT '#8b5cf6',
   custom_domain TEXT,
   theme TEXT,                                -- JSON ThemeConfig {mode, preset}
+  signups_enabled INTEGER DEFAULT 1,         -- registration on this org's custom domain
+  allowed_signup_domains TEXT DEFAULT '[]',  -- JSON array; empty = any email domain
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

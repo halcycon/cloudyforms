@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, Globe, Database } from 'lucide-react';
+import { ArrowLeft, Save, Globe, Database, UserPlus, X } from 'lucide-react';
 import { orgs as orgsApi } from '@/lib/api';
 import type { Organization } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import type { ThemeConfig } from '@/lib/themes';
 import {
@@ -42,6 +44,9 @@ export default function OrgSettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [orgTheme, setOrgTheme] = useState<ThemeConfig | undefined>(undefined);
+  const [signupsEnabled, setSignupsEnabled] = useState(true);
+  const [allowedSignupDomains, setAllowedSignupDomains] = useState<string[]>([]);
+  const [newSignupDomain, setNewSignupDomain] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(schema),
@@ -53,6 +58,8 @@ export default function OrgSettingsPage() {
       .then((data) => {
         setOrg(data);
         setOrgTheme(data.theme);
+        setSignupsEnabled(data.signupsEnabled ?? true);
+        setAllowedSignupDomains(data.allowedSignupDomains ?? []);
         reset({
           name: data.name,
           logoUrl: data.logoUrl ?? '',
@@ -75,8 +82,12 @@ export default function OrgSettingsPage() {
         secondaryColor: data.secondaryColor,
         customDomain: data.customDomain || undefined,
         theme: orgTheme,
+        signupsEnabled,
+        allowedSignupDomains,
       });
       setOrg(updated);
+      setSignupsEnabled(updated.signupsEnabled ?? true);
+      setAllowedSignupDomains(updated.allowedSignupDomains ?? []);
       toast.success('Settings saved');
     } catch {
       toast.error('Failed to save settings');
@@ -172,6 +183,89 @@ export default function OrgSettingsPage() {
           <Save className="h-4 w-4" /> Save Settings
         </Button>
       </form>
+
+      {/* Registration settings (custom domain visitors) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Registration Settings</CardTitle>
+          </div>
+          <CardDescription>
+            Controls who can create an account when visiting this organisation&apos;s custom domain
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Allow New Registrations</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When disabled, new users cannot register via your custom domain.
+              </p>
+            </div>
+            <Switch
+              checked={signupsEnabled}
+              onCheckedChange={setSignupsEnabled}
+            />
+          </div>
+
+          <Separator />
+
+          <div>
+            <Label className="text-sm font-medium">Restrict Registrations to These Domains</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+              Leave empty to allow any email domain. When set, only addresses from these domains can register on your custom domain.
+            </p>
+            <div className="flex gap-2 mb-3">
+              <Input
+                placeholder="example.com"
+                value={newSignupDomain}
+                onChange={(e) => setNewSignupDomain(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const domain = newSignupDomain.trim().toLowerCase();
+                    if (!domain || allowedSignupDomains.includes(domain)) return;
+                    setAllowedSignupDomains([...allowedSignupDomains, domain]);
+                    setNewSignupDomain('');
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const domain = newSignupDomain.trim().toLowerCase();
+                  if (!domain || allowedSignupDomains.includes(domain)) return;
+                  setAllowedSignupDomains([...allowedSignupDomains, domain]);
+                  setNewSignupDomain('');
+                }}
+                disabled={!newSignupDomain.trim()}
+              >
+                Add
+              </Button>
+            </div>
+            {allowedSignupDomains.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {allowedSignupDomains.map((domain) => (
+                  <Badge key={domain} variant="secondary" className="gap-1 pr-1">
+                    {domain}
+                    <button
+                      type="button"
+                      onClick={() => setAllowedSignupDomains(allowedSignupDomains.filter((d) => d !== domain))}
+                      className="ml-1 rounded-full p-0.5 hover:bg-muted/80"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Custom Domains */}
       <Card>

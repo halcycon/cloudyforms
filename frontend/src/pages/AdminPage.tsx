@@ -165,7 +165,8 @@ export default function AdminPage() {
           <div className="border-t pt-4">
             <Label className="text-sm font-medium">Allowed Email Domains</Label>
             <p className="text-xs text-gray-500 mt-0.5 mb-3">
-              Leave empty to allow all domains. When set, only emails from these domains can register.
+              Applies to registration on the main CloudyForms host only. Leave empty to allow all domains.
+              Custom domains use each organisation&apos;s own registration settings.
             </p>
             <div className="flex gap-2 mb-3">
               <Input

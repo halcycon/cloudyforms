@@ -81,7 +81,13 @@ export const auth = {
     post<{ message: string }>('/auth/change-password', { currentPassword, newPassword }),
 
   signupStatus: () =>
-    get<{ signupsEnabled: boolean; allowedDomains: string[] }>('/auth/signup-status'),
+    get<{
+      signupsEnabled: boolean;
+      allowedDomains: string[];
+      orgId?: string;
+      orgName?: string;
+      scope?: 'platform' | 'organization';
+    }>('/auth/signup-status'),
 };
 
 // Organizations
@@ -95,7 +101,7 @@ export const orgs = {
 
   update: (
     id: string,
-    data: Partial<Pick<Organization, 'name' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'customDomain' | 'theme'>>,
+    data: Partial<Pick<Organization, 'name' | 'slug' | 'logoUrl' | 'primaryColor' | 'secondaryColor' | 'customDomain' | 'theme' | 'signupsEnabled' | 'allowedSignupDomains'>>,
   ) => patch<Organization>(`/orgs/${id}`, data),
 
   delete: (id: string) => del<{ message: string }>(`/orgs/${id}`),

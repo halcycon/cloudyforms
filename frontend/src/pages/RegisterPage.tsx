@@ -30,6 +30,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [signupsEnabled, setSignupsEnabled] = useState(true);
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
+  const [orgName, setOrgName] = useState<string | undefined>();
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function RegisterPage() {
       .then((status) => {
         setSignupsEnabled(status.signupsEnabled);
         setAllowedDomains(status.allowedDomains);
+        setOrgName(status.orgName);
       })
       .catch(() => {
         // If the endpoint fails, assume signups are enabled (backwards compat)
@@ -115,7 +117,9 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle>Create an account</CardTitle>
-            <CardDescription>Start building forms for free</CardDescription>
+            <CardDescription>
+              {orgName ? `Register for ${orgName}` : 'Start building forms for free'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {allowedDomains.length > 0 && (

@@ -42,6 +42,10 @@ export interface Organization {
   customDomain?: string;
   /** Organization-level theme (mode + preset). */
   theme?: import('./themes').ThemeConfig;
+  /** Whether new users can register via this org's custom domain. */
+  signupsEnabled?: boolean;
+  /** Email domains allowed to register via this org's custom domain (empty = all). */
+  allowedSignupDomains?: string[];
   createdAt: string;
 }
 

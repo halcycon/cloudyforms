@@ -27,6 +27,8 @@ const updateOrgSchema = z.object({
     mode: z.enum(["light", "dark", "system"]),
     preset: z.enum(["default", "ocean", "sunset", "forest", "rose", "slate"]),
   }).optional().nullable(),
+  signupsEnabled: z.boolean().optional(),
+  allowedSignupDomains: z.array(z.string()).optional(),
 });
 
 const addMemberSchema = z.object({
@@ -37,6 +39,47 @@ const addMemberSchema = z.object({
 const updateMemberSchema = z.object({
   role: z.enum(["owner", "admin", "editor", "creator", "viewer"]),
 });
+
+function parseSignupDomains(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((d): d is string => typeof d === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function mapOrgResponse(org: {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  primary_color: string;
+  secondary_color: string;
+  custom_domain: string | null;
+  theme: string | null;
+  signups_enabled: number | null;
+  allowed_signup_domains: string | null;
+  created_at?: string;
+  updated_at?: string;
+}, memberRole?: string) {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    logoUrl: org.logo_url,
+    primaryColor: org.primary_color,
+    secondaryColor: org.secondary_color,
+    customDomain: org.custom_domain,
+    theme: org.theme ? JSON.parse(org.theme) : undefined,
+    signupsEnabled: org.signups_enabled !== 0,
+    allowedSignupDomains: parseSignupDomains(org.allowed_signup_domains),
+    role: memberRole,
+    createdAt: org.created_at,
+    updatedAt: org.updated_at,
+  };
+}
 
 // List user's organizations
 orgs.get("/", authMiddleware, async (c) => {
@@ -146,6 +189,8 @@ orgs.get("/:orgId", authMiddleware, async (c) => {
     secondary_color: string;
     custom_domain: string | null;
     theme: string | null;
+    signups_enabled: number | null;
+    allowed_signup_domains: string | null;
     created_at: string;
     updated_at: string;
   }>(c.env.DB, "SELECT * FROM organizations WHERE id = ?", [orgId]);
@@ -154,19 +199,7 @@ orgs.get("/:orgId", authMiddleware, async (c) => {
     return c.json({ error: "Not found" }, 404);
   }
 
-  return c.json({
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    logoUrl: org.logo_url,
-    primaryColor: org.primary_color,
-    secondaryColor: org.secondary_color,
-    customDomain: org.custom_domain,
-    theme: org.theme ? JSON.parse(org.theme) : undefined,
-    role: member?.role,
-    createdAt: org.created_at,
-    updatedAt: org.updated_at,
-  });
+  return c.json(mapOrgResponse(org, member?.role));
 });
 
 // Update organization
@@ -188,6 +221,11 @@ orgs.on(["PUT", "PATCH"],
     if (updates.secondaryColor !== undefined) { sets.push("secondary_color = ?"); params.push(updates.secondaryColor); }
     if (updates.customDomain !== undefined) { sets.push("custom_domain = ?"); params.push(updates.customDomain); }
     if (updates.theme !== undefined) { sets.push("theme = ?"); params.push(updates.theme ? JSON.stringify(updates.theme) : null); }
+    if (updates.signupsEnabled !== undefined) { sets.push("signups_enabled = ?"); params.push(updates.signupsEnabled ? 1 : 0); }
+    if (updates.allowedSignupDomains !== undefined) {
+      sets.push("allowed_signup_domains = ?");
+      params.push(JSON.stringify(updates.allowedSignupDomains));
+    }
 
     params.push(orgId);
 
@@ -200,20 +238,12 @@ orgs.on(["PUT", "PATCH"],
     const org = await dbQueryFirst<{
       id: string; name: string; slug: string;
       logo_url: string | null; primary_color: string; secondary_color: string;
-      custom_domain: string | null; theme: string | null; updated_at: string;
+      custom_domain: string | null; theme: string | null;
+      signups_enabled: number | null; allowed_signup_domains: string | null;
+      updated_at: string;
     }>(c.env.DB, "SELECT * FROM organizations WHERE id = ?", [orgId]);
 
-    return c.json({
-      id: org!.id,
-      name: org!.name,
-      slug: org!.slug,
-      logoUrl: org!.logo_url,
-      primaryColor: org!.primary_color,
-      secondaryColor: org!.secondary_color,
-      customDomain: org!.custom_domain,
-      theme: org!.theme ? JSON.parse(org!.theme) : undefined,
-      updatedAt: org!.updated_at,
-    });
+    return c.json(mapOrgResponse(org!));
   }
 );
 
