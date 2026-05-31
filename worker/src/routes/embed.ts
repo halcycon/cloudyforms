@@ -500,10 +500,18 @@ async function renderForm(slug,container){
 
 // ── Iframe mode ─────────────────────────────────────────────────────────────
 
+function buildEmbedUrl(slug,opts){
+  opts=opts||{};
+  var params=[];
+  if(opts.theme) params.push('theme='+encodeURIComponent(opts.theme));
+  if(opts.bg) params.push('bg='+encodeURIComponent(opts.bg));
+  return BASE+'/embed/'+encodeURIComponent(slug)+(params.length?'?'+params.join('&'):'');
+}
+
 function createIframe(slug,container,opts){
   opts=opts||{};
   var iframe=document.createElement('iframe');
-  iframe.src=BASE+'/embed/'+encodeURIComponent(slug)+(opts.theme?'?theme='+encodeURIComponent(opts.theme):'');
+  iframe.src=buildEmbedUrl(slug,opts);
   iframe.style.cssText='width:100%;border:none;display:block;transition:height 0.2s ease;';
   iframe.setAttribute('data-cloudyforms-slug',slug);
   iframe.setAttribute('frameborder','0');
@@ -541,7 +549,10 @@ function initContainer(container){
   if(container.hasAttribute('data-cf-headless')){
     renderForm(slug,container);
   } else {
-    createIframe(slug,container,{theme:container.getAttribute('data-theme')||''});
+    createIframe(slug,container,{
+      theme:container.getAttribute('data-theme')||'',
+      bg:container.getAttribute('data-bg')||''
+    });
   }
 }
 
