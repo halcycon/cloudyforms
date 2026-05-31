@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { CloudLightning, ShieldX } from 'lucide-react';
+import { ShieldX } from 'lucide-react';
 import { auth } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { AuthBrandingHeader, type SiteBranding } from '@/components/auth/AuthBrandingHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +34,7 @@ export default function RegisterPage() {
   const [signupsEnabled, setSignupsEnabled] = useState(true);
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [orgName, setOrgName] = useState<string | undefined>();
+  const [siteBranding, setSiteBranding] = useState<SiteBranding | null>(null);
   const [inviteEmail, setInviteEmail] = useState<string | undefined>();
   const [checkingStatus, setCheckingStatus] = useState(true);
 
@@ -51,6 +53,12 @@ export default function RegisterPage() {
         setSignupsEnabled(status.signupsEnabled);
         setAllowedDomains(status.allowedDomains);
         if (!inviteToken) setOrgName(status.orgName);
+        setSiteBranding({
+          scope: status.scope ?? 'platform',
+          orgName: status.orgName,
+          orgLogoUrl: status.orgLogoUrl,
+          orgPrimaryColor: status.orgPrimaryColor,
+        });
       }),
       invitePromise,
     ])
@@ -101,10 +109,7 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md">
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <CloudLightning className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold text-gray-900">CloudyForms</span>
-          </div>
+          <AuthBrandingHeader branding={siteBranding} />
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center py-4">
@@ -130,10 +135,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <CloudLightning className="h-8 w-8 text-primary-600" />
-          <span className="text-2xl font-bold text-gray-900">CloudyForms</span>
-        </div>
+        <AuthBrandingHeader branding={siteBranding} />
 
         <Card>
           <CardHeader>

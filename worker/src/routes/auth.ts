@@ -49,6 +49,8 @@ auth.get("/signup-status", async (c) => {
     allowedDomains: settings.allowedDomains,
     orgId: settings.orgId,
     orgName: settings.orgName,
+    orgLogoUrl: settings.orgLogoUrl,
+    orgPrimaryColor: settings.orgPrimaryColor,
     scope: settings.scope,
   });
 });

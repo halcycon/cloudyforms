@@ -4,9 +4,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { CloudLightning } from 'lucide-react';
 import { auth } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { AuthBrandingHeader, type SiteBranding } from '@/components/auth/AuthBrandingHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,10 +24,19 @@ export default function LoginPage() {
   const { setUser, setToken } = useStore();
   const [loading, setLoading] = useState(false);
   const [signupsEnabled, setSignupsEnabled] = useState(true);
+  const [siteBranding, setSiteBranding] = useState<SiteBranding | null>(null);
 
   useEffect(() => {
     auth.signupStatus()
-      .then((status) => setSignupsEnabled(status.signupsEnabled))
+      .then((status) => {
+        setSignupsEnabled(status.signupsEnabled);
+        setSiteBranding({
+          scope: status.scope ?? 'platform',
+          orgName: status.orgName,
+          orgLogoUrl: status.orgLogoUrl,
+          orgPrimaryColor: status.orgPrimaryColor,
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -56,11 +65,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <CloudLightning className="h-8 w-8 text-primary-600" />
-          <span className="text-2xl font-bold text-gray-900">CloudyForms</span>
-        </div>
+        <AuthBrandingHeader branding={siteBranding} />
 
         <Card>
           <CardHeader>

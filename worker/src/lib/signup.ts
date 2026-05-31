@@ -5,6 +5,8 @@ export interface SignupSettings {
   allowedDomains: string[];
   orgId?: string;
   orgName?: string;
+  orgLogoUrl?: string;
+  orgPrimaryColor?: string;
   scope: "platform" | "organization";
 }
 
@@ -59,11 +61,13 @@ export async function resolveSignupSettings(
 
   const org = await dbQueryFirst<{
     name: string;
+    logo_url: string | null;
+    primary_color: string | null;
     signups_enabled: number | null;
     allowed_signup_domains: string | null;
   }>(
     db,
-    "SELECT name, signups_enabled, allowed_signup_domains FROM organizations WHERE id = ?",
+    "SELECT name, logo_url, primary_color, signups_enabled, allowed_signup_domains FROM organizations WHERE id = ?",
     [domainOrgId],
   );
 
@@ -76,6 +80,8 @@ export async function resolveSignupSettings(
     allowedDomains: parseDomainList(org.allowed_signup_domains),
     orgId: domainOrgId,
     orgName: org.name,
+    orgLogoUrl: org.logo_url ?? undefined,
+    orgPrimaryColor: org.primary_color ?? undefined,
     scope: "organization",
   };
 }

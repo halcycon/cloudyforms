@@ -93,6 +93,8 @@ export const auth = {
       allowedDomains: string[];
       orgId?: string;
       orgName?: string;
+      orgLogoUrl?: string;
+      orgPrimaryColor?: string;
       scope?: 'platform' | 'organization';
     }>('/auth/signup-status'),
 };
