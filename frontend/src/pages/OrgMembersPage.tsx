@@ -14,9 +14,11 @@ import {
   Pencil,
   X,
   Check,
+  Mail,
+  UserCheck,
 } from 'lucide-react';
 import { orgs as orgsApi } from '@/lib/api';
-import type { OrgMember, OrgGroup, OrgGroupMember } from '@/lib/types';
+import type { OrgMember, OrgGroup, OrgGroupMember, OrgInvitation } from '@/lib/types';
 import { useStore } from '@/lib/store';
 import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -74,7 +76,9 @@ export default function OrgMembersPage() {
 
   /* ─── Members state ─── */
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [invitations, setInvitations] = useState<OrgInvitation[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
 
@@ -112,6 +116,12 @@ export default function OrgMembersPage() {
       .finally(() => setLoadingMembers(false));
 
     orgsApi
+      .listInvitations(orgId)
+      .then(setInvitations)
+      .catch(() => {})
+      .finally(() => setLoadingInvitations(false));
+
+    orgsApi
       .listGroups(orgId)
       .then(setGroups)
       .catch(() => toast.error('Failed to load groups'))
@@ -137,15 +147,45 @@ export default function OrgMembersPage() {
     if (!orgId) return;
     setInviting(true);
     try {
-      const member = await orgsApi.addMember(orgId, data.email, data.role);
-      setMembers((prev) => [...prev, member]);
-      inviteFormHook.reset();
-      toast.success(`${data.email} added!`);
+      const result = await orgsApi.addMember(orgId, data.email, data.role);
+      if ('type' in result && result.type === 'invitation') {
+        setInvitations((prev) => [result.invitation, ...prev]);
+        inviteFormHook.reset();
+        toast.success(`Invitation email sent to ${data.email}`);
+      } else {
+        setMembers((prev) => [...prev, result as OrgMember]);
+        inviteFormHook.reset();
+        toast.success(`${data.email} added!`);
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
-      toast.error(error.response?.data?.error ?? 'Failed to add member');
+      toast.error(error.response?.data?.error ?? 'Failed to invite member');
     } finally {
       setInviting(false);
+    }
+  }
+
+  async function handleApproveMember(userId: string) {
+    if (!orgId) return;
+    try {
+      await orgsApi.approveMember(orgId, userId);
+      setMembers((prev) =>
+        prev.map((m) => (m.userId === userId ? { ...m, status: 'active' } : m)),
+      );
+      toast.success('Member approved');
+    } catch {
+      toast.error('Failed to approve member');
+    }
+  }
+
+  async function handleCancelInvitation(invitationId: string) {
+    if (!orgId) return;
+    try {
+      await orgsApi.cancelInvitation(orgId, invitationId);
+      setInvitations((prev) => prev.filter((i) => i.id !== invitationId));
+      toast.success('Invitation cancelled');
+    } catch {
+      toast.error('Failed to cancel invitation');
     }
   }
 
@@ -293,6 +333,9 @@ export default function OrgMembersPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <p className="text-xs text-gray-500 mb-3">
+                Existing users are added immediately. New users receive an email invitation to complete registration.
+              </p>
               <form
                 onSubmit={inviteFormHook.handleSubmit(onInvite)}
                 className="flex flex-col sm:flex-row gap-3"
@@ -355,11 +398,26 @@ export default function OrgMembersPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {member.user.name}
+                          {member.status === 'pending' && (
+                            <Badge variant="secondary" className="ml-2 text-[10px]">Pending approval</Badge>
+                          )}
                         </p>
                         <p className="text-xs text-gray-400 truncate">{member.user.email}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {member.role === 'owner' ? (
+                        {member.status === 'pending' ? (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => handleApproveMember(member.userId)}>
+                              <UserCheck className="h-3.5 w-3.5" /> Approve
+                            </Button>
+                            <button
+                              onClick={() => setRemovingId(member.userId)}
+                              className="text-gray-400 hover:text-red-500 p-1 rounded"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : member.role === 'owner' ? (
                           <span className="text-xs font-medium text-gray-500">
                             {ROLE_LABELS[member.role]}
                           </span>
@@ -389,6 +447,42 @@ export default function OrgMembersPage() {
                           </button>
                         )}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pending email invitations */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Mail className="h-4 w-4" /> Pending Invitations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingInvitations ? (
+                <div className="h-10 bg-gray-200 animate-pulse rounded" />
+              ) : invitations.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">No pending invitations.</p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {invitations.map((invitation) => (
+                    <div key={invitation.id} className="flex items-center gap-3 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{invitation.email}</p>
+                        <p className="text-xs text-gray-400">
+                          {ROLE_LABELS[invitation.role]} · invited {new Date(invitation.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleCancelInvitation(invitation.id)}
+                        className="text-gray-400 hover:text-red-500 p-1 rounded"
+                        title="Cancel invitation"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                   ))}
                 </div>

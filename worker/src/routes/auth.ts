@@ -10,6 +10,7 @@ import {
 import { dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware } from "../middleware/auth";
 import { emailMatchesAllowedDomains, resolveSignupSettings } from "../lib/signup";
+import { getInvitationByToken, linkUserAfterRegistration } from "../lib/membership";
 import type { Bindings } from "../index";
 
 const auth = new Hono<{ Bindings: Bindings }>();
@@ -18,6 +19,7 @@ const registerSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
   password: z.string().min(8).max(72),
+  inviteToken: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -51,8 +53,16 @@ auth.get("/signup-status", async (c) => {
   });
 });
 
+auth.get("/invite/:token", async (c) => {
+  const invite = await getInvitationByToken(c.env.DB, c.req.param("token"));
+  if (!invite) {
+    return c.json({ error: "Invitation not found or expired" }, 404);
+  }
+  return c.json(invite);
+});
+
 auth.post("/register", zValidator("json", registerSchema), async (c) => {
-  const { name, email, password } = c.req.valid("json");
+  const { name, email, password, inviteToken } = c.req.valid("json");
   const redacted = `***@${email.split("@")[1] ?? "?"}`;
   console.log(`[AUTH] Registration attempt email=${redacted}`);
 
@@ -99,6 +109,11 @@ auth.post("/register", zValidator("json", registerSchema), async (c) => {
     "INSERT INTO users (id, email, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
     [id, email.toLowerCase(), name, passwordHash, now, now]
   );
+
+  await linkUserAfterRegistration(c.env.DB, id, email.toLowerCase(), {
+    domainOrgId: c.get("domainOrgId"),
+    inviteToken,
+  });
 
   const token = await signToken(
     { userId: id, email: email.toLowerCase(), isSuperAdmin: false },

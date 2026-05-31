@@ -200,7 +200,7 @@ export default function OrgSettingsPage() {
             <div>
               <Label className="text-sm font-medium">Allow New Registrations</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                When disabled, new users cannot register via your custom domain.
+                When disabled, new users cannot register via your custom domain. This only applies when visitors use your org&apos;s domain — not the main CloudyForms host.
               </p>
             </div>
             <Switch

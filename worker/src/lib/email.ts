@@ -146,3 +146,37 @@ export function buildNotificationEmail(
 
   return { html, text };
 }
+
+export function buildOrgInviteEmail(params: {
+  orgName: string;
+  invitedByName: string;
+  registerUrl: string;
+  role: string;
+}): { html: string; text: string } {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Organisation invitation</title></head>
+<body style="font-family:sans-serif;background:#f3f4f6;margin:0;padding:24px">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+    <div style="background:#6366f1;padding:24px 32px">
+      <h1 style="color:#fff;margin:0;font-size:20px">Join ${escapeHtml(params.orgName)}</h1>
+    </div>
+    <div style="padding:32px">
+      <p style="color:#374151">${escapeHtml(params.invitedByName)} has invited you to join <strong>${escapeHtml(params.orgName)}</strong> on CloudyForms as a <strong>${escapeHtml(params.role)}</strong>.</p>
+      <p style="color:#374151">Create your account using the link below. This invitation expires in 7 days.</p>
+      <p style="margin:24px 0">
+        <a href="${escapeHtml(params.registerUrl)}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600">Complete registration</a>
+      </p>
+      <p style="color:#6b7280;font-size:13px">Or copy this URL: ${escapeHtml(params.registerUrl)}</p>
+    </div>
+    <div style="padding:16px 32px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:12px">
+      Sent by CloudyForms
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const text = `${params.invitedByName} invited you to join ${params.orgName} on CloudyForms as a ${params.role}.\n\nComplete registration: ${params.registerUrl}\n\nThis invitation expires in 7 days.`;
+
+  return { html, text };
+}

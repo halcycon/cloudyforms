@@ -3,6 +3,7 @@ import type {
   User,
   Organization,
   OrgMember,
+  OrgInvitation,
   OrgGroup,
   OrgGroupMember,
   Form,
@@ -73,8 +74,11 @@ export const auth = {
   login: (email: string, password: string) =>
     post<{ token: string; user: User }>('/auth/login', { email, password }),
 
-  register: (name: string, email: string, password: string) =>
-    post<{ token: string; user: User }>('/auth/register', { name, email, password }),
+  register: (name: string, email: string, password: string, inviteToken?: string) =>
+    post<{ token: string; user: User }>('/auth/register', { name, email, password, inviteToken }),
+
+  getInvite: (token: string) =>
+    get<{ email: string; role: string; orgName: string }>(`/auth/invite/${token}`),
 
   me: () => get<User>('/auth/me'),
 
@@ -112,7 +116,15 @@ export const orgs = {
   listMembers: (id: string) => get<OrgMember[]>(`/orgs/${id}/members`),
 
   addMember: (id: string, email: string, role: string) =>
-    post<OrgMember>(`/orgs/${id}/members`, { email, role }),
+    post<OrgMember | { type: 'invitation'; invitation: OrgInvitation }>(`/orgs/${id}/members`, { email, role }),
+
+  listInvitations: (id: string) => get<OrgInvitation[]>(`/orgs/${id}/invitations`),
+
+  cancelInvitation: (orgId: string, invitationId: string) =>
+    del<{ message: string }>(`/orgs/${orgId}/invitations/${invitationId}`),
+
+  approveMember: (orgId: string, userId: string) =>
+    post<{ userId: string; status: string }>(`/orgs/${orgId}/members/${userId}/approve`),
 
   updateMember: (id: string, userId: string, role: string) =>
     patch<OrgMember>(`/orgs/${id}/members/${userId}`, { role }),

@@ -116,14 +116,14 @@ export function requireRole(
       return c.json({ error: "Organization ID required" }, 400);
     }
 
-    const member = await dbQueryFirst<{ role: string }>(
+    const member = await dbQueryFirst<{ role: string; status: string }>(
       c.env.DB,
-      "SELECT role FROM org_members WHERE org_id = ? AND user_id = ?",
+      "SELECT role, status FROM org_members WHERE org_id = ? AND user_id = ?",
       [orgId, user.userId]
     );
 
-    if (!member) {
-      console.log(`[ROLE] User ${user.userId} is not a member of org ${orgId}`);
+    if (!member || member.status === "pending") {
+      console.log(`[ROLE] User ${user.userId} is not an active member of org ${orgId}`);
       return c.json({ error: "Not a member of this organization" }, 403);
     }
 

@@ -53,7 +53,19 @@ export interface OrgMember {
   userId: string;
   orgId: string;
   role: UserRole;
+  status?: 'active' | 'pending';
+  joinedAt?: string;
   user: User;
+}
+
+export interface OrgInvitation {
+  id: string;
+  orgId: string;
+  email: string;
+  role: UserRole;
+  expiresAt: string;
+  createdAt: string;
+  invitedByName?: string;
 }
 
 export interface OrgGroup {

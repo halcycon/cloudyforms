@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware, requireRole } from "../middleware/auth";
+import { addOrgMember, createOrgInvitation } from "../lib/membership";
 import type { Bindings } from "../index";
 
 const orgs = new Hono<{ Bindings: Bindings }>();
@@ -102,7 +103,7 @@ orgs.get("/", authMiddleware, async (c) => {
     `SELECT o.id, o.name, o.slug, o.logo_url, o.primary_color, o.secondary_color, o.theme, m.role, o.created_at
      FROM organizations o
      JOIN org_members m ON m.org_id = o.id
-     WHERE m.user_id = ?
+     WHERE m.user_id = ? AND m.status = 'active'
      ORDER BY o.created_at DESC`,
     [user.userId]
   );
@@ -267,16 +268,17 @@ orgs.get("/:orgId/members", authMiddleware, requireRole("viewer"), async (c) => 
     is_super_admin: number;
     user_created_at: string;
     role: string;
+    status: string;
     created_at: string;
   }
 
   const members = await dbQuery<MemberRow>(
     c.env.DB,
-    `SELECT m.user_id, u.email, u.name, u.is_super_admin, u.created_at AS user_created_at, m.role, m.created_at
+    `SELECT m.user_id, u.email, u.name, u.is_super_admin, u.created_at AS user_created_at, m.role, m.status, m.created_at
      FROM org_members m
      JOIN users u ON u.id = m.user_id
      WHERE m.org_id = ?
-     ORDER BY m.created_at ASC`,
+     ORDER BY CASE m.status WHEN 'pending' THEN 0 ELSE 1 END, m.created_at ASC`,
     [orgId]
   );
 
@@ -285,6 +287,7 @@ orgs.get("/:orgId/members", authMiddleware, requireRole("viewer"), async (c) => 
       userId: m.user_id,
       orgId,
       role: m.role,
+      status: m.status ?? "active",
       joinedAt: m.created_at,
       user: {
         id: m.user_id,
@@ -297,6 +300,51 @@ orgs.get("/:orgId/members", authMiddleware, requireRole("viewer"), async (c) => 
   );
 });
 
+// List pending email invitations
+orgs.get("/:orgId/invitations", authMiddleware, requireRole("admin"), async (c) => {
+  const { orgId } = c.req.param();
+
+  const rows = await dbQuery<{
+    id: string;
+    email: string;
+    role: string;
+    expires_at: string;
+    created_at: string;
+    inviter_name: string | null;
+  }>(
+    c.env.DB,
+    `SELECT i.id, i.email, i.role, i.expires_at, i.created_at, u.name AS inviter_name
+     FROM org_invitations i
+     LEFT JOIN users u ON u.id = i.invited_by
+     WHERE i.org_id = ? AND i.accepted_at IS NULL AND i.expires_at > datetime('now')
+     ORDER BY i.created_at DESC`,
+    [orgId],
+  );
+
+  return c.json(
+    rows.map((row) => ({
+      id: row.id,
+      orgId,
+      email: row.email,
+      role: row.role,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+      invitedByName: row.inviter_name,
+    })),
+  );
+});
+
+// Cancel a pending email invitation
+orgs.delete("/:orgId/invitations/:invitationId", authMiddleware, requireRole("admin"), async (c) => {
+  const { orgId, invitationId } = c.req.param();
+  await dbRun(
+    c.env.DB,
+    "DELETE FROM org_invitations WHERE id = ? AND org_id = ? AND accepted_at IS NULL",
+    [invitationId, orgId],
+  );
+  return c.json({ message: "Invitation cancelled" });
+});
+
 // Add/invite member
 orgs.post(
   "/:orgId/members",
@@ -306,6 +354,14 @@ orgs.post(
   async (c) => {
     const { orgId } = c.req.param();
     const { email, role } = c.req.valid("json");
+    const currentUser = c.get("user");
+
+    const org = await dbQueryFirst<{ name: string }>(
+      c.env.DB,
+      "SELECT name FROM organizations WHERE id = ?",
+      [orgId],
+    );
+    if (!org) return c.json({ error: "Not found" }, 404);
 
     const targetUser = await dbQueryFirst<{ id: string; name: string; email: string }>(
       c.env.DB,
@@ -314,7 +370,23 @@ orgs.post(
     );
 
     if (!targetUser) {
-      return c.json({ error: "User not found. They must register first." }, 404);
+      try {
+        const invitation = await createOrgInvitation(c.env.DB, c.env, {
+          orgId,
+          orgName: org.name,
+          email,
+          role,
+          invitedByUserId: currentUser.userId,
+          invitedByName: currentUser.name,
+        });
+        return c.json({ type: "invitation", invitation }, 201);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "";
+        if (message === "INVITE_EXISTS") {
+          return c.json({ error: "An invitation is already pending for this email" }, 409);
+        }
+        throw err;
+      }
     }
 
     const existing = await dbQueryFirst<{ id: string }>(
@@ -327,20 +399,16 @@ orgs.post(
       return c.json({ error: "User is already a member" }, 409);
     }
 
-    const id = generateId();
     const now = new Date().toISOString();
-
-    await dbRun(
-      c.env.DB,
-      "INSERT INTO org_members (id, org_id, user_id, role, created_at) VALUES (?, ?, ?, ?, ?)",
-      [id, orgId, targetUser.id, role, now]
-    );
+    await addOrgMember(c.env.DB, orgId, targetUser.id, role, "active");
 
     return c.json(
       {
+        type: "member",
         userId: targetUser.id,
         orgId,
         role,
+        status: "active",
         joinedAt: now,
         user: {
           id: targetUser.id,
@@ -392,6 +460,29 @@ orgs.on(["PUT", "PATCH"],
     return c.json({ userId, role });
   }
 );
+
+// Approve a self-registered pending member
+orgs.post("/:orgId/members/:userId/approve", authMiddleware, requireRole("admin"), async (c) => {
+  const { orgId, userId } = c.req.param();
+
+  const member = await dbQueryFirst<{ status: string }>(
+    c.env.DB,
+    "SELECT status FROM org_members WHERE org_id = ? AND user_id = ?",
+    [orgId, userId],
+  );
+  if (!member) return c.json({ error: "Member not found" }, 404);
+  if (member.status !== "pending") {
+    return c.json({ error: "Member is not awaiting approval" }, 400);
+  }
+
+  await dbRun(
+    c.env.DB,
+    "UPDATE org_members SET status = 'active' WHERE org_id = ? AND user_id = ?",
+    [orgId, userId],
+  );
+
+  return c.json({ userId, status: "active" });
+});
 
 // Remove member
 orgs.delete(

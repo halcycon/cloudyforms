@@ -35,8 +35,23 @@ CREATE TABLE IF NOT EXISTS org_members (
   org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'viewer', -- owner, admin, editor, creator, viewer
+  status TEXT NOT NULL DEFAULT 'active', -- active, pending (awaiting admin approval)
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE(org_id, user_id)
+);
+
+-- Pending email invitations (user has not registered yet)
+CREATE TABLE IF NOT EXISTS org_invitations (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  token TEXT UNIQUE NOT NULL,
+  invited_by TEXT REFERENCES users(id),
+  expires_at TEXT NOT NULL,
+  accepted_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(org_id, email)
 );
 
 -- Forms

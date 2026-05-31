@@ -152,7 +152,10 @@ export default function AdminPage() {
             <div>
               <Label className="text-sm font-medium">Allow New Signups</Label>
               <p className="text-xs text-gray-500 mt-0.5">
-                When disabled, no new users can register. Existing users can still sign in.
+                When disabled, no new users can register on the main CloudyForms host
+                ({' '}
+                <code className="font-mono text-[11px] bg-gray-100 px-1 rounded">forms.thecuckoocamp.co.uk</code>
+                ). This does not affect organisation custom domains — each org controls its own registration toggle.
               </p>
             </div>
             <Switch

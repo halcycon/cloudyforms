@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,36 +26,57 @@ type RegisterForm = z.infer<typeof schema>;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite') ?? undefined;
   const { setUser, setToken } = useStore();
   const [loading, setLoading] = useState(false);
   const [signupsEnabled, setSignupsEnabled] = useState(true);
   const [allowedDomains, setAllowedDomains] = useState<string[]>([]);
   const [orgName, setOrgName] = useState<string | undefined>();
+  const [inviteEmail, setInviteEmail] = useState<string | undefined>();
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   useEffect(() => {
-    auth.signupStatus()
-      .then((status) => {
+    const invitePromise = inviteToken
+      ? auth.getInvite(inviteToken).then((invite) => {
+          setOrgName(invite.orgName);
+          setInviteEmail(invite.email);
+        }).catch(() => {
+          toast.error('This invitation link is invalid or has expired');
+        })
+      : Promise.resolve();
+
+    Promise.all([
+      auth.signupStatus().then((status) => {
         setSignupsEnabled(status.signupsEnabled);
         setAllowedDomains(status.allowedDomains);
-        setOrgName(status.orgName);
-      })
-      .catch(() => {
-        // If the endpoint fails, assume signups are enabled (backwards compat)
-      })
+        if (!inviteToken) setOrgName(status.orgName);
+      }),
+      invitePromise,
+    ])
+      .catch(() => {})
       .finally(() => setCheckingStatus(false));
-  }, []);
+  }, [inviteToken]);
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
-  } = useForm<RegisterForm>({ resolver: zodResolver(schema) });
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(schema),
+  });
+
+  useEffect(() => {
+    if (inviteEmail) {
+      reset({ email: inviteEmail });
+    }
+  }, [inviteEmail, reset]);
 
   async function onSubmit(data: RegisterForm) {
     setLoading(true);
     try {
-      const res = await auth.register(data.name, data.email, data.password);
+      const res = await auth.register(data.name, data.email, data.password, inviteToken);
       setToken(res.token);
       setUser(res.user);
       toast.success('Account created! Welcome to CloudyForms.');
@@ -118,7 +139,11 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle>Create an account</CardTitle>
             <CardDescription>
-              {orgName ? `Register for ${orgName}` : 'Start building forms for free'}
+              {orgName
+                ? inviteToken
+                  ? `Complete your invitation to join ${orgName}`
+                  : `Register for ${orgName}`
+                : 'Start building forms for free'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -147,6 +172,7 @@ export default function RegisterPage() {
                   placeholder="jane@example.com"
                   error={errors.email?.message}
                   autoComplete="email"
+                  readOnly={!!inviteEmail}
                 />
               </div>
 
