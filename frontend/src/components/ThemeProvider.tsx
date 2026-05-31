@@ -63,7 +63,11 @@ export function ThemeProvider({ children, systemDefault }: ThemeProviderProps) {
   );
 
   // Apply CSS variables + <html> class whenever the resolved theme changes.
+  // Embed routes (/embed/*) manage their own document theme from form branding
+  // and ?theme= query params — do not apply the org shell theme there.
   useEffect(() => {
+    if (window.location.pathname.startsWith('/embed/')) return;
+
     const tokens = getTokens(effectiveTheme.preset, resolvedMode);
     applyTokens(tokens);
 

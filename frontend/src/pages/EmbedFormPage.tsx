@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { resolveFormAppearance, getFormPrimaryColor } from '@/lib/formBranding';
+import { DEFAULT_THEME, applyTokens, getTokens } from '@/lib/themes';
 import { FormFieldLayout } from '@/components/FormRenderer/FormFieldLayout';
 import {
   expandFields,
@@ -121,10 +122,16 @@ export default function EmbedFormPage() {
       .catch(() => setState('error'));
   }, [slug]);
 
-  // Apply branding colours as CSS variables
+  // Apply embed-specific document theme (independent of org shell dark mode).
   useEffect(() => {
     if (!form?.branding) return;
-    const surface = resolveFormAppearance(form.branding, themeParam);
+    const appearance = resolveFormAppearance(form.branding, themeParam);
+    const preset = form.branding.theme?.preset ?? DEFAULT_THEME.preset;
+    const mode = appearance.isDark ? 'dark' : 'light';
+
+    applyTokens(getTokens(preset, mode));
+    document.documentElement.classList.toggle('dark', appearance.isDark);
+
     const primaryColor = getFormPrimaryColor(form.branding);
     const root = document.documentElement;
     if (primaryColor) {
@@ -134,10 +141,11 @@ export default function EmbedFormPage() {
       const b = parseInt(hex.slice(4, 6), 16);
       root.style.setProperty('--primary', `${r} ${g} ${b}`);
     }
-    if (!forceTransparent) {
-      document.body.style.backgroundColor = surface.pageBackground;
-    }
-    root.style.setProperty('--foreground', surface.textColor);
+
+    document.body.style.backgroundColor = forceTransparent
+      ? 'transparent'
+      : appearance.pageBackground;
+    root.style.setProperty('--foreground', appearance.textColor);
   }, [form, forceTransparent, themeParam]);
 
   const surface = form ? resolveFormAppearance(form.branding, themeParam) : null;

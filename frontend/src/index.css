@@ -127,7 +127,20 @@ body {
   outline: none !important;
 }
 
-/* Public / embedded form surface — dark theme must style the card, not just the page */
+/* Public / embedded form surface — explicit light/dark field styling */
+.cf-form-surface[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.cf-form-surface[data-theme="light"] textarea,
+.cf-form-surface[data-theme="light"] select {
+  background-color: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+
+.cf-form-surface[data-theme="light"] input::placeholder,
+.cf-form-surface[data-theme="light"] textarea::placeholder {
+  color: #9ca3af;
+}
+
 .cf-form-surface[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .cf-form-surface[data-theme="dark"] textarea,
 .cf-form-surface[data-theme="dark"] select {
