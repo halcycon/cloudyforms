@@ -42,9 +42,10 @@ Feel free to reach out via the links above if you'd like to discuss it.
 8. [Environment Variables](#environment-variables)
 9. [Custom Domains](#custom-domains)
 10. [Embedding Forms](#embedding-forms)
-11. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
-12. [Free vs Paid Tier](#free-vs-paid-tier)
-13. [Development](#development)
+11. [Documentation](#documentation)
+12. [Self-Hosting on Your Own Account](#self-hosting-on-your-own-cloudflare-account)
+13. [Free vs Paid Tier](#free-vs-paid-tier)
+14. [Development](#development)
 
 ---
 
@@ -99,7 +100,8 @@ You can find my other projects and links here:
 | Kiosk mode | Token-based device registration, multi-form |
 | Cloudflare Turnstile | Anti-spam, no CAPTCHA |
 | File uploads | R2 storage + D1 blob for small files |
-| Email notifications | Cloudflare Email Service (transactional) |
+| Email notifications | Receipt + admin alerts by role, group, or custom address — see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
+| ntfy push notifications | ntfy.sh or self-hosted; optional Bearer auth — see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | Webhooks | HMAC-signed payloads |
 | CSV / JSON export | Per-form or per-response |
 | Device fingerprinting | Duplicate submission detection |
@@ -439,7 +441,8 @@ The Worker must still be deployed via `wrangler deploy` (or the `deploy-worker.y
 | `CF_ACCOUNT_ID` | Optional | With REST fallback |
 | `MAILCHANNELS_API_KEY` | Optional | Authenticated Mailchannels (orgs using mailchannels provider) |
 
-See **[docs/EMAIL.md](docs/EMAIL.md)** for email setup and HTML templates.
+See **[docs/EMAIL.md](docs/EMAIL.md)** for email setup and HTML templates.  
+See **[docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md)** for form response alerts (email recipients, ntfy).
 
 ### Frontend
 
@@ -498,6 +501,17 @@ See **[docs/embedding.md](docs/embedding.md)** for full details.
 ```
 
 The embed code is also available inside the **Form Builder → Embed tab**.
+
+---
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [docs/EMAIL.md](docs/EMAIL.md) | Outbound mail (Cloudflare Email Service, Mailchannels), templates, org From addresses |
+| [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) | Form response alerts — email recipients (roles, groups, creator), ntfy push, auth |
+| [docs/embedding.md](docs/embedding.md) | iframe / JS widget / Hugo embed |
+| [docs/cloudflare-integration.md](docs/cloudflare-integration.md) | Custom domains, CNAME, tunnels |
 
 ---
 

@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, GripVertical, GitBranch } from 'lucide-react';
 import { workflow as workflowApi, orgs as orgsApi } from '@/lib/api';
+import { ResponseNotificationSettings } from './ResponseNotificationSettings';
 
 interface FormSettingsProps {
   settings: FormSettingsType;
@@ -36,19 +37,12 @@ const ROLE_OPTIONS = [
 ];
 
 export function FormSettings({ settings, fields, slug, formId, orgId, onChange, onSlugChange }: FormSettingsProps) {
-  const [newEmail, setNewEmail] = useState('');
   const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
   const [orgGroups, setOrgGroups] = useState<OrgGroup[]>([]);
   const [savingWorkflow, setSavingWorkflow] = useState(false);
 
   function update<K extends keyof FormSettingsType>(key: K, value: FormSettingsType[K]) {
     onChange({ ...settings, [key]: value });
-  }
-
-  function addNotificationEmail() {
-    if (!newEmail.trim()) return;
-    update('notificationEmails', [...settings.notificationEmails, newEmail.trim()]);
-    setNewEmail('');
   }
 
   const emailFields = fields.filter((f) => f.type === 'email');
@@ -58,10 +52,15 @@ export function FormSettings({ settings, fields, slug, formId, orgId, onChange, 
     if (formId && settings.workflowEnabled) {
       workflowApi.listStages(formId).then(setWorkflowStages).catch(() => {/* ignore */});
     }
+  }, [formId, settings.workflowEnabled]);
+
+  useEffect(() => {
     if (orgId) {
       orgsApi.listGroups(orgId).then(setOrgGroups).catch(() => {/* ignore */});
+    } else {
+      setOrgGroups([]);
     }
-  }, [formId, orgId, settings.workflowEnabled]);
+  }, [orgId]);
 
   function addWorkflowStage() {
     setWorkflowStages((prev) => [
@@ -246,9 +245,9 @@ export function FormSettings({ settings, fields, slug, formId, orgId, onChange, 
 
       <Separator />
 
-      {/* Email */}
+      {/* Notifications */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900">Email Notifications</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
 
         <div className="flex items-center justify-between">
           <div>
@@ -280,34 +279,11 @@ export function FormSettings({ settings, fields, slug, formId, orgId, onChange, 
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>Notification Emails</Label>
-          {settings.notificationEmails.map((email, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input value={email} readOnly className="flex-1 text-sm" />
-              <button
-                type="button"
-                onClick={() => update('notificationEmails', settings.notificationEmails.filter((_, j) => j !== i))}
-                className="text-gray-400 hover:text-red-500"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-          <div className="flex gap-2">
-            <Input
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addNotificationEmail()}
-              placeholder="admin@example.com"
-              type="email"
-              className="flex-1"
-            />
-            <Button size="sm" variant="outline" onClick={addNotificationEmail}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <ResponseNotificationSettings
+          settings={settings}
+          orgGroups={orgGroups}
+          onChange={onChange}
+        />
       </div>
 
       <Separator />

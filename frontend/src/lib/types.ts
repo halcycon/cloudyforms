@@ -196,7 +196,21 @@ export interface FormSettings {
   requireAuth: boolean;
   sendReceiptEmail: boolean;
   receiptEmailField?: string;
+  notifyByEmail?: boolean;
   notificationEmails: string[];
+  emailNotify?: {
+    formCreator?: boolean;
+    allMembers?: boolean;
+    roles?: Partial<Record<'owner' | 'admin' | 'editor' | 'creator' | 'viewer', boolean>>;
+    groupIds?: string[];
+  };
+  notifyByNtfy?: boolean;
+  ntfy?: {
+    serverUrl?: string;
+    topic: string;
+    authEnabled?: boolean;
+    authToken?: string;
+  };
   webhookUrl?: string;
   webhookSecret?: string;
   enableTurnstile: boolean;

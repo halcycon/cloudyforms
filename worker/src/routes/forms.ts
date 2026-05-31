@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
+import { sanitizePublicFormSettings } from "../lib/notification-settings";
 import { authMiddleware, requireRole, optionalAuthMiddleware } from "../middleware/auth";
 import type { Bindings } from "../index";
 
@@ -46,7 +47,26 @@ export interface FormSettings {
   requireAuth: boolean;
   sendReceiptEmail: boolean;
   receiptEmailField?: string;
+  /** Send email to notificationEmails when a response is submitted */
+  notifyByEmail?: boolean;
   notificationEmails: string[];
+  /** Org member / group targets for email notifications */
+  emailNotify?: {
+    formCreator?: boolean;
+    allMembers?: boolean;
+    roles?: Partial<Record<"owner" | "admin" | "editor" | "creator" | "viewer", boolean>>;
+    groupIds?: string[];
+  };
+  /** Send push notification via ntfy when a response is submitted */
+  notifyByNtfy?: boolean;
+  ntfy?: {
+    /** Optional ntfy server base URL (defaults to https://ntfy.sh) */
+    serverUrl?: string;
+    topic: string;
+    /** Use Bearer token auth (default off) */
+    authEnabled?: boolean;
+    authToken?: string;
+  };
   webhookUrl?: string;
   webhookSecret?: string;
   enableTurnstile: boolean;
@@ -129,7 +149,9 @@ const defaultSettings: FormSettings = {
   allowMultipleSubmissions: true,
   requireAuth: false,
   sendReceiptEmail: false,
+  notifyByEmail: false,
   notificationEmails: [],
+  notifyByNtfy: false,
   enableTurnstile: false,
   kioskOnly: false,
 };
@@ -329,9 +351,9 @@ forms.get("/public/:formSlug", optionalAuthMiddleware, async (c) => {
 
   const settings: FormSettings = JSON.parse(form.settings);
 
-  // Hide access code from public response
+  // Hide access code and notification secrets from public response
   const result = serializeForm(form);
-  result.settings = { ...settings };
+  result.settings = sanitizePublicFormSettings({ ...settings });
   if (form.access_code) {
     result.accessCode = undefined as unknown as null;
   }

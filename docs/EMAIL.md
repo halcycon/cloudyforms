@@ -80,12 +80,14 @@ Org **logo URL** and **primary colour** (Organisation Settings) are applied to a
 
 ## Form email settings
 
-Per form (Settings tab):
+Per form (Settings tab → **Notifications**):
 
 - **Send receipt email** — needs `receiptEmailField` configured
-- **Notification emails** — admin recipient list
+- **Admin email alerts** — team member toggles (creator, roles, groups, all members) plus optional custom addresses
 
 Both use the org's configured provider and From address.
+
+For full details on admin alerts, ntfy push notifications, and recipient toggles, see **[NOTIFICATIONS.md](NOTIFICATIONS.md)**.
 
 ## Troubleshooting
 

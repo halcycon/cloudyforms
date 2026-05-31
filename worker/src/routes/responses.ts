@@ -11,8 +11,8 @@ import {
   sendOrgEmail,
   getOrgEmailBranding,
   renderFormReceiptEmail,
-  renderFormNotificationEmail,
 } from "../lib/email";
+import { sendFormResponseNotifications } from "../lib/form-notifications";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
 import { resolveOptionListReferences, serializeForm, type FormRow as FullFormRow } from "./forms";
@@ -39,6 +39,7 @@ interface FormRow {
   fields: string;
   access_type: string;
   access_code: string | null;
+  created_by: string | null;
 }
 
 interface ResponseRow {
@@ -269,24 +270,15 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
     }).catch((err) => console.error("[EMAIL] Receipt send failed:", err));
   }
 
-  // Send notification emails
-  if (settings.notificationEmails.length > 0) {
-    const { html, text } = renderFormNotificationEmail(branding, {
-      formTitle: form.title,
-      responseId: id,
-      submitterEmail: submitterEmail ?? undefined,
-      fields: fieldPairs,
-    });
-    for (const email of settings.notificationEmails) {
-      sendOrgEmail(c.env.DB, c.env, form.org_id, {
-        to: email,
-        subject: `New response: ${form.title}`,
-        html,
-        text,
-        fromName: branding.orgName,
-      }).catch((err) => console.error("[EMAIL] Notification send failed:", err));
-    }
-  }
+  // Send admin notifications (email and/or ntfy)
+  sendFormResponseNotifications(c.env.DB, c.env, settings, {
+    orgId: form.org_id,
+    formTitle: form.title,
+    responseId: id,
+    formCreatedBy: form.created_by,
+    submitterEmail,
+    fields: fieldPairs,
+  }).catch((err) => console.error("[NOTIFY] Response notification failed:", err));
 
   // Trigger webhooks
   triggerWebhook(form.id, "response.created", responsePayload, c.env).catch(() => {});
@@ -898,9 +890,17 @@ responses.post("/draft/:token/submit", zValidator("json", draftSubmitSchema), as
   if (!row) return c.json({ error: "Draft not found or already submitted" }, 404);
 
   // Get form to check Turnstile setting
-  const form = await dbQueryFirst<{ settings: string; slug: string; id: string }>(
+  const form = await dbQueryFirst<{
+    settings: string;
+    slug: string;
+    id: string;
+    org_id: string;
+    title: string;
+    fields: string;
+    created_by: string | null;
+  }>(
     c.env.DB,
-    "SELECT id, slug, settings FROM forms WHERE id = ?",
+    "SELECT id, slug, settings, org_id, title, fields, created_by FROM forms WHERE id = ?",
     [row.form_id]
   );
 
@@ -946,6 +946,20 @@ responses.post("/draft/:token/submit", zValidator("json", draftSubmitSchema), as
   );
 
   console.log(`[RESPONSES] Draft submitted id=${row.id} token=${token} stage=${firstStageId ?? 'none'}`);
+
+  const fields = JSON.parse(form.fields) as { id: string; label?: string }[];
+  const fieldPairs = fields
+    .filter((f) => mergedData[f.id] !== undefined)
+    .map((f) => ({ label: f.label ?? f.id, value: mergedData[f.id] }));
+
+  sendFormResponseNotifications(c.env.DB, c.env, settings, {
+    orgId: form.org_id,
+    formTitle: form.title,
+    responseId: row.id,
+    formCreatedBy: form.created_by,
+    submitterEmail,
+    fields: fieldPairs,
+  }).catch((err) => console.error("[NOTIFY] Response notification failed:", err));
 
   const message = settings.successMessage || "Thank you for your submission!";
   const redirectUrl = settings.redirectUrl;

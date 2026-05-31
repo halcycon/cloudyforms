@@ -39,7 +39,9 @@ const DEFAULT_SETTINGS: FormSettings = {
   allowMultipleSubmissions: true,
   requireAuth: false,
   sendReceiptEmail: false,
+  notifyByEmail: false,
   notificationEmails: [],
+  notifyByNtfy: false,
   enableTurnstile: false,
   kioskOnly: false,
 };

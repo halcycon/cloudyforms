@@ -46,6 +46,8 @@ cloudyforms/
 │   └── tsconfig.json            # strict (no noUnusedLocals)
 │
 ├── docs/              # Additional documentation
+│   ├── EMAIL.md                 # Outbound mail providers and templates
+│   ├── NOTIFICATIONS.md         # Form response alerts (email + ntfy)
 │   └── embedding.md             # Embedding guide (iframe, JS widget, Hugo, SSGs)
 ├── README.md          # Setup, deployment, and usage guide
 └── .github/

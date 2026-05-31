@@ -1288,7 +1288,9 @@ exportRouter.post("/import", authMiddleware, zValidator("json", importFormSchema
     allowMultipleSubmissions: true,
     requireAuth: false,
     sendReceiptEmail: false,
+    notifyByEmail: false,
     notificationEmails: [],
+    notifyByNtfy: false,
     enableTurnstile: false,
     kioskOnly: false,
   };
