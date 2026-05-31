@@ -23,7 +23,7 @@ export default function OrgDetailPage() {
       .then(([orgData, formsData]) => {
         setOrg(orgData);
         setCurrentOrg(orgData);
-        setOrgForms(formsData.slice(0, 5));
+        setOrgForms(formsData);
       })
       .catch(() => navigate('/orgs'))
       .finally(() => setLoading(false));
@@ -110,7 +110,7 @@ export default function OrgDetailPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {orgForms.map((form) => (
+              {orgForms.slice(0, 5).map((form) => (
                 <div key={form.id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="font-medium text-sm text-gray-900">{form.title}</p>

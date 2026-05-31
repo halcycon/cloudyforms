@@ -266,7 +266,14 @@ export interface FormRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Present when loaded with a COUNT subquery */
+  response_count?: number;
 }
+
+const FORM_RESPONSE_COUNT_SQL = `(
+  SELECT COUNT(*) FROM form_responses
+  WHERE form_id = forms.id AND is_spam = 0
+) AS response_count`;
 
 export function serializeForm(row: FormRow) {
   return {
@@ -285,6 +292,7 @@ export function serializeForm(row: FormRow) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    responseCount: row.response_count ?? 0,
   };
 }
 
@@ -362,7 +370,7 @@ forms.get("/", authMiddleware, async (c) => {
 
   const rows = await dbQuery<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE org_id = ? ORDER BY updated_at DESC",
+    `SELECT *, ${FORM_RESPONSE_COUNT_SQL} FROM forms WHERE org_id = ? ORDER BY updated_at DESC`,
     [orgId]
   );
 
@@ -420,7 +428,7 @@ forms.get("/:formId", authMiddleware, async (c) => {
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE id = ?",
+    `SELECT *, ${FORM_RESPONSE_COUNT_SQL} FROM forms WHERE id = ?`,
     [formId]
   );
 
