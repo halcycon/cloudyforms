@@ -6,6 +6,7 @@ import { responses } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { TurnstileWidget } from './TurnstileWidget';
 import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
+import { formRef } from '@/lib/utils';
 import { FormFieldLayout } from './FormFieldLayout';
 import {
   expandFields,
@@ -475,7 +476,7 @@ export function FormRenderer({
           }
         } else {
           // Standard public submission
-          const res = await responses.submit(form.slug, fieldValues, turnstileToken);
+          const res = await responses.submit(formRef(form), fieldValues, turnstileToken);
           setSubmitted(true);
           onSubmitSuccess?.(res.id);
           if (form.settings.redirectUrl) {

@@ -14,6 +14,9 @@
  *     the host page's DOM. No iframe, no CloudyForms CSS — the host site's
  *     own stylesheet applies to all inputs naturally.
  *
+ * "slug" below is a form ref: "orgSlug/formSlug", or a bare "formSlug"
+ * resolved via the request's custom domain (see lib/formRef).
+ *
  * GET /api/embed/form/:slug
  *   Returns the full public form definition (fields, settings, etc.) for use
  *   by the headless embed script.
@@ -29,25 +32,25 @@
 
 import { Hono } from "hono";
 import { SignJWT, jwtVerify } from "jose";
-import { dbQueryFirst } from "../lib/db";
+import { findFormByRef, formRefFromParams } from "../lib/formRef";
 import { uploadFile } from "../lib/r2";
 import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
 
 /** Mint a short-lived token proving this request came via a headless embed fetch. */
-async function mintEmbedToken(slug: string, secret: string): Promise<string> {
-  return new SignJWT({ slug, purpose: "headless-embed" })
+async function mintEmbedToken(formId: string, secret: string): Promise<string> {
+  return new SignJWT({ formId, purpose: "headless-embed" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("1h")
     .sign(new TextEncoder().encode(secret));
 }
 
-/** Verify an embed token. Returns true only if valid, not expired, and slug matches. */
-export async function verifyEmbedToken(token: string, slug: string, secret: string): Promise<boolean> {
+/** Verify an embed token. Returns true only if valid, not expired, and form id matches. */
+export async function verifyEmbedToken(token: string, formId: string, secret: string): Promise<boolean> {
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-    return payload.purpose === "headless-embed" && payload.slug === slug;
+    return payload.purpose === "headless-embed" && payload.formId === formId;
   } catch {
     return false;
   }
@@ -65,6 +68,10 @@ function buildEmbedScript(baseUrl: string): string {
 var BASE='${baseUrl}';
 
 // ── Utility ────────────────────────────────────────────────────────────────
+
+function refPath(slug){
+  return String(slug).split('/').map(encodeURIComponent).join('/');
+}
 
 function el(tag,attrs,children){
   var e=document.createElement(tag);
@@ -366,7 +373,7 @@ async function uploadFiles(data,slug){
     if(v instanceof File){
       var fd=new FormData();
       fd.append('file',v);
-      var res=await fetch(BASE+'/api/embed/upload/'+encodeURIComponent(slug),{method:'POST',body:fd});
+      var res=await fetch(BASE+'/api/embed/upload/'+refPath(slug),{method:'POST',body:fd});
       if(!res.ok) throw new Error('File upload failed for field '+k);
       var json=await res.json();
       data[k]=json.key;
@@ -375,7 +382,7 @@ async function uploadFiles(data,slug){
         if(!(item instanceof File)) return item;
         var fd=new FormData();
         fd.append('file',item);
-        var res=await fetch(BASE+'/api/embed/upload/'+encodeURIComponent(slug),{method:'POST',body:fd});
+        var res=await fetch(BASE+'/api/embed/upload/'+refPath(slug),{method:'POST',body:fd});
         if(!res.ok) throw new Error('File upload failed for field '+k);
         var json=await res.json();
         return json.key;
@@ -393,7 +400,7 @@ async function renderForm(slug,container){
 
   var res;
   try{
-    res=await fetch(BASE+'/api/embed/form/'+encodeURIComponent(slug));
+    res=await fetch(BASE+'/api/embed/form/'+refPath(slug));
   }catch(e){
     container.removeAttribute('data-cf-loading');
     container.appendChild(el('p',{},'Could not load form.'));
@@ -461,7 +468,7 @@ async function renderForm(slug,container){
     var payload={data:data,embedToken:embedToken||undefined};
     var r;
     try{
-      r=await fetch(BASE+'/api/responses/submit/'+encodeURIComponent(slug),{
+      r=await fetch(BASE+'/api/responses/submit/'+refPath(slug),{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(payload)
@@ -505,7 +512,7 @@ function buildEmbedUrl(slug,opts){
   var params=[];
   if(opts.theme) params.push('theme='+encodeURIComponent(opts.theme));
   if(opts.bg) params.push('bg='+encodeURIComponent(opts.bg));
-  return BASE+'/embed/'+encodeURIComponent(slug)+(params.length?'?'+params.join('&'):'');
+  return BASE+'/embed/'+refPath(slug)+(params.length?'?'+params.join('&'):'');
 }
 
 function createIframe(slug,container,opts){
@@ -619,9 +626,8 @@ embedRoutes.get("/script.js", (c) => {
 // Public form definition (for headless embed)
 // ---------------------------------------------------------------------------
 
-embedRoutes.get("/form/:slug", async (c) => {
-  const { slug } = c.req.param();
-  const form = await dbQueryFirst<{
+embedRoutes.get("/form/:slugOrOrg/:slug?", async (c) => {
+  const form = await findFormByRef<{
     id: string;
     title: string;
     description: string | null;
@@ -632,8 +638,9 @@ embedRoutes.get("/form/:slug", async (c) => {
     branding: string;
   }>(
     c.env.DB,
-    "SELECT id, title, description, status, access_type, fields, settings, branding FROM forms WHERE slug = ?",
-    [slug]
+    formRefFromParams(c.req.param()),
+    c.get("domainOrgId"),
+    "id, title, description, status, access_type, fields, settings, branding"
   );
 
   if (!form || form.status !== "published") {
@@ -650,7 +657,7 @@ embedRoutes.get("/form/:slug", async (c) => {
   // Mint a short-lived token so the headless submit can bypass Turnstile.
   // Only the worker can verify this — a bot hitting the public form directly
   // never receives one.
-  const embedToken = await mintEmbedToken(slug, c.env.JWT_SECRET);
+  const embedToken = await mintEmbedToken(form.id, c.env.JWT_SECRET);
 
   return c.json({
     id: form.id,
@@ -681,16 +688,15 @@ const ALLOWED_TYPES = new Set([
 ]);
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
-embedRoutes.post("/upload/:slug", async (c) => {
-  const { slug } = c.req.param();
-
+embedRoutes.post("/upload/:slugOrOrg/:slug?", async (c) => {
   // Verify the form exists and is published before accepting the upload
-  const form = await dbQueryFirst<{ id: string }>(
+  const form = await findFormByRef<{ id: string; status: string }>(
     c.env.DB,
-    "SELECT id FROM forms WHERE slug = ? AND status = 'published'",
-    [slug]
+    formRefFromParams(c.req.param()),
+    c.get("domainOrgId"),
+    "id, status"
   );
-  if (!form) {
+  if (!form || form.status !== "published") {
     return c.json({ error: "Form not found" }, 404);
   }
 
@@ -724,9 +730,8 @@ embedRoutes.post("/upload/:slug", async (c) => {
 // Public form config (retained for backwards compatibility)
 // ---------------------------------------------------------------------------
 
-embedRoutes.get("/config/:slug", async (c) => {
-  const { slug } = c.req.param();
-  const form = await dbQueryFirst<{
+embedRoutes.get("/config/:slugOrOrg/:slug?", async (c) => {
+  const form = await findFormByRef<{
     id: string;
     title: string;
     description: string | null;
@@ -735,8 +740,9 @@ embedRoutes.get("/config/:slug", async (c) => {
     branding: string;
   }>(
     c.env.DB,
-    "SELECT id, title, description, status, access_type, branding FROM forms WHERE slug = ?",
-    [slug]
+    formRefFromParams(c.req.param()),
+    c.get("domainOrgId"),
+    "id, title, description, status, access_type, branding"
   );
 
   if (!form || form.status !== "published") {

@@ -7,7 +7,7 @@
  *  - Sends `postMessage` events to the parent window so the embed widget can
  *    auto-resize the iframe height.
  *
- * The route is `/embed/:slug`.
+ * The route is `/embed/:slug` or `/embed/:orgSlug/:slug`.
  *
  * Supported query params:
  *   ?theme=light|dark     – override colour scheme
@@ -32,7 +32,7 @@ import {
   shouldShowField,
 } from '@/components/FormRenderer/formFieldUtils';
 import { TurnstileWidget } from '@/components/FormRenderer/TurnstileWidget';
-import { cn } from '@/lib/utils';
+import { cn, formRef, formRefFromParams } from '@/lib/utils';
 
 type PageState = 'loading' | 'error' | 'code_required' | 'ready' | 'closed' | 'submitted';
 
@@ -61,7 +61,7 @@ function notifyParentSubmitted(slug: string, responseId: string) {
 }
 
 export default function EmbedFormPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const slug = formRefFromParams(useParams<{ orgSlug?: string; slug: string }>());
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -215,7 +215,7 @@ export default function EmbedFormPage() {
     }
     setSubmitting(true);
     try {
-      const result = await responsesApi.submit(slug, formData, turnstileToken);
+      const result = await responsesApi.submit(formRef(form), formData, turnstileToken);
       notifyParentSubmitted(slug, result.id);
       setState('submitted');
     } catch (err: unknown) {

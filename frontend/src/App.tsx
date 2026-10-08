@@ -65,8 +65,10 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/f/:slug" element={<PublicFormPage />} />
+        <Route path="/f/:orgSlug/:slug" element={<PublicFormPage />} />
         {/* Minimal embed page – optimised for iframes, no navigation chrome */}
         <Route path="/embed/:slug" element={<EmbedFormPage />} />
+        <Route path="/embed/:orgSlug/:slug" element={<EmbedFormPage />} />
         <Route path="/kiosk/:token" element={<KioskPage />} />
         {/* Pre-fill submission page (public, token-based) */}
         <Route path="/fill/:token" element={<PrefillSubmitPage />} />

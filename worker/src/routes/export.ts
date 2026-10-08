@@ -1279,7 +1279,7 @@ exportRouter.post("/import", authMiddleware, zValidator("json", importFormSchema
 
   const cfg = body.data;
   const formId = generateId();
-  const slug = await ensureUniqueSlug(c.env.DB, slugify(cfg.title));
+  const slug = await ensureUniqueSlug(c.env.DB, body.orgId, slugify(cfg.title));
   const now = new Date().toISOString();
 
   const defaultSettings = {
@@ -1302,10 +1302,10 @@ exportRouter.post("/import", authMiddleware, zValidator("json", importFormSchema
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO forms (id, org_id, title, description, slug, legacy_slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      formId, body.orgId, cfg.title, cfg.description ?? null, slug,
+      formId, body.orgId, cfg.title, cfg.description ?? null, slug, formId,
       cfg.accessType ?? "public", fields, settings, branding,
       documentTemplate, user.userId, now, now,
     ]

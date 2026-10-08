@@ -17,7 +17,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 interface EmbedCodeProps {
+  /** Org-qualified form ref ("orgSlug/slug") so embeds resolve from any site */
   formSlug: string;
+  /** Path for the direct link; defaults to formSlug */
+  publicPath?: string;
   formTitle?: string;
   /** Override the base URL (defaults to window.location.origin) */
   baseUrl?: string;
@@ -81,10 +84,10 @@ function CopyInput({ value, label }: { value: string; label?: string }) {
   );
 }
 
-export function EmbedCode({ formSlug, formTitle = 'form', baseUrl }: EmbedCodeProps) {
+export function EmbedCode({ formSlug, publicPath, formTitle = 'form', baseUrl }: EmbedCodeProps) {
   const origin = baseUrl ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
-  const directLink = `${origin}/f/${formSlug}`;
+  const directLink = `${origin}/f/${publicPath ?? formSlug}`;
   const embedLink = `${origin}/embed/${formSlug}`;
   const scriptSrc = `${origin}/api/embed/script.js`;
 

@@ -77,15 +77,17 @@ async function sendEmailNotifications(
     fields: ctx.fields,
   });
 
-  for (const email of recipients) {
-    sendOrgEmail(db, env, ctx.orgId, {
-      to: email,
-      subject: `New response: ${ctx.formTitle}`,
-      html,
-      text,
-      fromName: branding.orgName,
-    }).catch((err) => console.error("[EMAIL] Notification send failed:", err));
-  }
+  await Promise.allSettled(
+    recipients.map((email) =>
+      sendOrgEmail(db, env, ctx.orgId, {
+        to: email,
+        subject: `New response: ${ctx.formTitle}`,
+        html,
+        text,
+        fromName: branding.orgName,
+      }).catch((err) => console.error("[EMAIL] Notification send failed:", err)),
+    ),
+  );
 }
 
 async function sendNtfyNotifications(
@@ -102,14 +104,18 @@ async function sendNtfyNotifications(
       ? settings.ntfy.authToken.trim()
       : undefined;
 
-  sendNtfyNotification({
-    serverUrl: settings.ntfy?.serverUrl,
-    topic,
-    title: `New response: ${ctx.formTitle}`,
-    message: buildNtfyMessage(ctx),
-    tags: ["form", "cloudyforms"],
-    authToken,
-  }).catch((err) => console.error("[NTFY] Notification send failed:", err));
+  try {
+    await sendNtfyNotification({
+      serverUrl: settings.ntfy?.serverUrl,
+      topic,
+      title: `New response: ${ctx.formTitle}`,
+      message: buildNtfyMessage(ctx),
+      tags: ["form", "cloudyforms"],
+      authToken,
+    });
+  } catch (err) {
+    console.error("[NTFY] Notification send failed:", err);
+  }
 }
 
 /** Fire-and-forget email and ntfy notifications for a new form response. */

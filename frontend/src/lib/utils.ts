@@ -31,6 +31,29 @@ export function generateSlug(title: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+type FormRefSource = { slug?: string; orgSlug?: string | null; publicPath?: string };
+
+/** Unambiguous public form ref ("orgSlug/slug"); safe for embeds on any site. */
+export function formRef(form: FormRefSource): string {
+  const slug = form.slug ?? '';
+  return form.orgSlug ? `${form.orgSlug}/${slug}` : slug;
+}
+
+/**
+ * Path after /f/ or /embed/ for links shown on this site: the bare slug on
+ * the org's own custom domain, otherwise "orgSlug/slug".
+ */
+export function formPublicPath(form: FormRefSource): string {
+  if (form.publicPath && !form.publicPath.includes('/')) return form.slug ?? '';
+  return formRef(form);
+}
+
+/** Join route params from `/f/:slug` or `/f/:orgSlug/:slug` into a form ref. */
+export function formRefFromParams(params: { orgSlug?: string; slug?: string }): string | undefined {
+  if (!params.slug) return undefined;
+  return params.orgSlug ? `${params.orgSlug}/${params.slug}` : params.slug;
+}
+
 export function downloadFile(content: string, filename: string, type: string): void {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);

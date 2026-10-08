@@ -7,11 +7,12 @@ import { FormRenderer } from '@/components/FormRenderer/FormRenderer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formRefFromParams } from '@/lib/utils';
 
 type PageState = 'loading' | 'error' | 'code_required' | 'ready' | 'closed';
 
 export default function PublicFormPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const slug = formRefFromParams(useParams<{ orgSlug?: string; slug: string }>());
   const [form, setForm] = useState<Form | null>(null);
   const [state, setState] = useState<PageState>('loading');
   const [accessCode, setAccessCode] = useState('');

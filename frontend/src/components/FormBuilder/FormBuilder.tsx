@@ -16,7 +16,7 @@ import { Save, Eye, Globe, ArrowLeft, Settings, Paintbrush, Code2, FileText } fr
 import type { Form, FormField, FieldType, FieldGroup, FormSettings, BrandingConfig } from '@/lib/types';
 import { forms as formsApi } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { cn, generateSlug as _generateSlug } from '@/lib/utils';
+import { cn, formPublicPath, formRef, generateSlug as _generateSlug } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -345,7 +345,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
           <div className="ml-auto flex items-center gap-2">
             {form.id && (
               <a
-                href={`/f/${form.slug}`}
+                href={`/f/${formPublicPath(form)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -421,6 +421,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
                   settings={form.settings ?? DEFAULT_SETTINGS}
                   fields={form.fields ?? []}
                   slug={form.slug}
+                  orgSlug={form.orgSlug ?? currentOrg?.slug}
                   formId={formId ?? form.id}
                   orgId={form.orgId ?? currentOrg?.id}
                   onChange={(settings) => updateForm({ settings })}
@@ -445,7 +446,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
 
               <TabsContent value="embed" className="flex-1 overflow-auto mt-0 p-3">
                 {form.id && form.slug ? (
-                  <EmbedCode formSlug={form.slug} formTitle={form.title} />
+                  <EmbedCode formSlug={formRef(form)} publicPath={formPublicPath(form)} formTitle={form.title} />
                 ) : (
                   <div className="flex items-center justify-center h-32 text-center p-4">
                     <p className="text-xs text-gray-400">Save the form first to get embed code.</p>

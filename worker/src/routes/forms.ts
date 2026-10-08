@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
+import { findFormByRef, formRefFromParams } from "../lib/formRef";
 import { sanitizePublicFormSettings } from "../lib/notification-settings";
 import { authMiddleware, requireRole, optionalAuthMiddleware } from "../middleware/auth";
 import type { Bindings } from "../index";
@@ -244,14 +245,15 @@ export function slugify(title: string): string {
     .slice(0, 80);
 }
 
-export async function ensureUniqueSlug(db: D1Database, base: string): Promise<string> {
+/** Form slugs are unique per organisation; append -1, -2, … until free. */
+export async function ensureUniqueSlug(db: D1Database, orgId: string, base: string): Promise<string> {
   let slug = base;
   let suffix = 0;
   while (true) {
     const existing = await dbQueryFirst<{ id: string }>(
       db,
-      "SELECT id FROM forms WHERE slug = ?",
-      [slug]
+      "SELECT id FROM forms WHERE org_id = ? AND slug = ?",
+      [orgId, slug]
     );
     if (!existing) return slug;
     suffix += 1;
@@ -290,6 +292,8 @@ export interface FormRow {
   updated_at: string;
   /** Present when loaded with a COUNT subquery */
   response_count?: number;
+  /** Present when loaded with FORM_ORG_SLUG_SQL */
+  org_slug?: string | null;
 }
 
 const FORM_RESPONSE_COUNT_SQL = `(
@@ -297,13 +301,25 @@ const FORM_RESPONSE_COUNT_SQL = `(
   WHERE form_id = forms.id AND is_spam = 0
 ) AS response_count`;
 
-export function serializeForm(row: FormRow) {
+export const FORM_ORG_SLUG_SQL = `(
+  SELECT slug FROM organizations WHERE id = forms.org_id
+) AS org_slug`;
+
+/**
+ * `publicPath` is the path segment after /f/ or /embed/: just the slug when the
+ * request comes from the org's own custom domain, otherwise "orgSlug/slug".
+ */
+export function serializeForm(row: FormRow, domainOrgId?: string) {
+  const orgSlug = row.org_slug ?? null;
+  const publicPath = orgSlug && domainOrgId !== row.org_id ? `${orgSlug}/${row.slug}` : row.slug;
   return {
     id: row.id,
     orgId: row.org_id,
+    orgSlug,
     title: row.title,
     description: row.description,
     slug: row.slug,
+    publicPath,
     status: row.status,
     accessType: row.access_type,
     accessCode: row.access_code,
@@ -320,19 +336,22 @@ export function serializeForm(row: FormRow) {
 
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
-// Public form by slug (no auth required; optional auth allows draft preview)
-forms.get("/public/:formSlug", optionalAuthMiddleware, async (c) => {
-  const { formSlug } = c.req.param();
+// Public form by ref: /public/:slug or /public/:orgSlug/:slug
+// (no auth required; optional auth allows draft preview)
+forms.get("/public/:slugOrOrg/:slug?", optionalAuthMiddleware, async (c) => {
+  const formRef = formRefFromParams(c.req.param());
   const user = c.get("user"); // may be undefined for unauthenticated visitors
+  const domainOrgId = c.get("domainOrgId");
 
-  const form = await dbQueryFirst<FormRow>(
+  const form = await findFormByRef<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE slug = ?",
-    [formSlug]
+    formRef,
+    domainOrgId,
+    `*, ${FORM_ORG_SLUG_SQL}`
   );
 
   if (!form) {
-    console.log(`[FORMS] Public form not found slug=${formSlug}`);
+    console.log(`[FORMS] Public form not found ref=${formRef}`);
     return c.json({ error: "Form not found" }, 404);
   }
 
@@ -352,7 +371,7 @@ forms.get("/public/:formSlug", optionalAuthMiddleware, async (c) => {
   const settings: FormSettings = JSON.parse(form.settings);
 
   // Hide access code and notification secrets from public response
-  const result = serializeForm(form);
+  const result = serializeForm(form, domainOrgId);
   result.settings = sanitizePublicFormSettings({ ...settings });
   if (form.access_code) {
     result.accessCode = undefined as unknown as null;
@@ -392,11 +411,12 @@ forms.get("/", authMiddleware, async (c) => {
 
   const rows = await dbQuery<FormRow>(
     c.env.DB,
-    `SELECT *, ${FORM_RESPONSE_COUNT_SQL} FROM forms WHERE org_id = ? ORDER BY updated_at DESC`,
+    `SELECT *, ${FORM_RESPONSE_COUNT_SQL}, ${FORM_ORG_SLUG_SQL} FROM forms WHERE org_id = ? ORDER BY updated_at DESC`,
     [orgId]
   );
 
-  return c.json(rows.map(serializeForm));
+  const domainOrgId = c.get("domainOrgId");
+  return c.json(rows.map((row) => serializeForm(row, domainOrgId)));
 });
 
 // Create form
@@ -414,7 +434,7 @@ forms.post("/", authMiddleware, zValidator("json", createFormSchema), async (c) 
   }
 
   const baseSlug = body.slug ?? slugify(body.title);
-  const slug = await ensureUniqueSlug(c.env.DB, baseSlug);
+  const slug = await ensureUniqueSlug(c.env.DB, body.orgId, baseSlug);
 
   const id = generateId();
   const now = new Date().toISOString();
@@ -425,10 +445,10 @@ forms.post("/", authMiddleware, zValidator("json", createFormSchema), async (c) 
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO forms (id, org_id, title, description, slug, legacy_slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id, body.orgId, body.title, body.description ?? null, slug,
+      id, body.orgId, body.title, body.description ?? null, slug, id,
       body.accessType, body.accessCode ?? null, fields, settings, branding,
       documentTemplate, user.userId, now, now,
     ]
@@ -436,11 +456,11 @@ forms.post("/", authMiddleware, zValidator("json", createFormSchema), async (c) 
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE id = ?",
+    `SELECT *, ${FORM_ORG_SLUG_SQL} FROM forms WHERE id = ?`,
     [id]
   );
 
-  return c.json(serializeForm(form!), 201);
+  return c.json(serializeForm(form!, c.get("domainOrgId")), 201);
 });
 
 // Get form
@@ -450,7 +470,7 @@ forms.get("/:formId", authMiddleware, async (c) => {
 
   const form = await dbQueryFirst<FormRow>(
     c.env.DB,
-    `SELECT *, ${FORM_RESPONSE_COUNT_SQL} FROM forms WHERE id = ?`,
+    `SELECT *, ${FORM_RESPONSE_COUNT_SQL}, ${FORM_ORG_SLUG_SQL} FROM forms WHERE id = ?`,
     [formId]
   );
 
@@ -466,7 +486,7 @@ forms.get("/:formId", authMiddleware, async (c) => {
     return c.json({ error: "Access denied" }, 403);
   }
 
-  const result = serializeForm(form);
+  const result = serializeForm(form, c.get("domainOrgId"));
 
   // Attach org-level static values for the form builder
   const staticRows = await dbQuery<{ key: string; value: string }>(
@@ -513,14 +533,14 @@ forms.on(["PUT", "PATCH"],
 
     if (updates.title !== undefined) { sets.push("title = ?"); params.push(updates.title); }
     if (updates.slug !== undefined) {
-      // Check uniqueness (excluding current form)
+      // Slugs are unique per organisation (excluding current form)
       const existing = await dbQueryFirst<{ id: string }>(
         c.env.DB,
-        "SELECT id FROM forms WHERE slug = ? AND id != ?",
-        [updates.slug, formId]
+        "SELECT id FROM forms WHERE org_id = ? AND slug = ? AND id != ?",
+        [form.org_id, updates.slug, formId]
       );
       if (existing) {
-        return c.json({ error: "Slug is already in use" }, 409);
+        return c.json({ error: "Slug is already in use in this organisation" }, 409);
       }
       sets.push("slug = ?");
       params.push(updates.slug);
@@ -550,11 +570,11 @@ forms.on(["PUT", "PATCH"],
 
     const updated = await dbQueryFirst<FormRow>(
       c.env.DB,
-      "SELECT * FROM forms WHERE id = ?",
+      `SELECT *, ${FORM_ORG_SLUG_SQL} FROM forms WHERE id = ?`,
       [formId]
     );
 
-    return c.json(serializeForm(updated!));
+    return c.json(serializeForm(updated!, c.get("domainOrgId")));
   }
 );
 
@@ -677,15 +697,15 @@ forms.post("/:formId/duplicate", authMiddleware, async (c) => {
   }
 
   const newId = generateId();
-  const newSlug = await ensureUniqueSlug(c.env.DB, `${form.slug}-copy`);
+  const newSlug = await ensureUniqueSlug(c.env.DB, form.org_id, `${form.slug}-copy`);
   const now = new Date().toISOString();
 
   await dbRun(
     c.env.DB,
-    `INSERT INTO forms (id, org_id, title, description, slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO forms (id, org_id, title, description, slug, legacy_slug, status, access_type, access_code, fields, settings, branding, document_template, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      newId, form.org_id, `${form.title} (Copy)`, form.description, newSlug,
+      newId, form.org_id, `${form.title} (Copy)`, form.description, newSlug, newId,
       form.access_type, form.access_code, form.fields, form.settings, form.branding,
       form.document_template, user.userId, now, now,
     ]
@@ -693,11 +713,11 @@ forms.post("/:formId/duplicate", authMiddleware, async (c) => {
 
   const duplicated = await dbQueryFirst<FormRow>(
     c.env.DB,
-    "SELECT * FROM forms WHERE id = ?",
+    `SELECT *, ${FORM_ORG_SLUG_SQL} FROM forms WHERE id = ?`,
     [newId]
   );
 
-  return c.json(serializeForm(duplicated!), 201);
+  return c.json(serializeForm(duplicated!, c.get("domainOrgId")), 201);
 });
 
 export { forms as formRoutes };

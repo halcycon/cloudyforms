@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { verifyEmbedToken } from "./embed";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
+import { findFormByRef, formRefFromParams } from "../lib/formRef";
 import { authMiddleware } from "../middleware/auth";
 import { verifyTurnstile } from "../lib/turnstile";
 import { generateFingerprint } from "../lib/fingerprint";
@@ -12,6 +13,7 @@ import {
   getOrgEmailBranding,
   renderFormReceiptEmail,
 } from "../lib/email";
+import { deferBackgroundTask } from "../lib/background";
 import { sendFormResponseNotifications } from "../lib/form-notifications";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
@@ -105,6 +107,7 @@ async function triggerWebhook(
   );
 
   const body = JSON.stringify({ event, data: payload, timestamp: new Date().toISOString() });
+  const deliveries: Promise<unknown>[] = [];
 
   for (const wh of webhooks) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -125,9 +128,14 @@ async function triggerWebhook(
       headers["X-CloudyForms-Signature"] = `sha256=${sigHex}`;
     }
 
-    // fire and forget
-    fetch(wh.url, { method: "POST", headers, body }).catch(() => {});
+    deliveries.push(
+      fetch(wh.url, { method: "POST", headers, body }).catch((err) => {
+        console.error(`[WEBHOOK] Delivery failed url=${wh.url}:`, err);
+      }),
+    );
   }
+
+  await Promise.allSettled(deliveries);
 }
 
 // ── Submit response (public) ────────────────────────────────────────────────────
@@ -139,16 +147,13 @@ const submitSchema = z.object({
   embedToken: z.string().optional(),
 });
 
-responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) => {
-  const { formSlug } = c.req.param();
+// /submit/:slug or /submit/:orgSlug/:slug (see lib/formRef)
+responses.post("/submit/:slugOrOrg/:slug?", zValidator("json", submitSchema), async (c) => {
+  const formSlug = formRefFromParams(c.req.param());
   const { data, turnstileToken, accessCode, embedToken } = c.req.valid("json");
   console.log(`[RESPONSES] Submission attempt slug=${formSlug}`);
 
-  const form = await dbQueryFirst<FormRow>(
-    c.env.DB,
-    "SELECT * FROM forms WHERE slug = ?",
-    [formSlug]
-  );
+  const form = await findFormByRef<FormRow>(c.env.DB, formSlug, c.get("domainOrgId"));
 
   if (!form) {
     console.log(`[RESPONSES] Form not found slug=${formSlug}`);
@@ -192,7 +197,7 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
   // targeting the standalone form.
   if (settings.enableTurnstile) {
     const isHeadlessEmbed = embedToken
-      ? await verifyEmbedToken(embedToken, formSlug, c.env.JWT_SECRET)
+      ? await verifyEmbedToken(embedToken, form.id, c.env.JWT_SECRET)
       : false;
 
     if (!isHeadlessEmbed) {
@@ -246,7 +251,7 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
   const responsePayload = { id, formId: form.id, createdAt: now };
   console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug} stage=${firstStageId ?? 'none'}`);
 
-  // Post-submission side effects (fire and forget)
+  // Post-submission side effects (complete after response via waitUntil)
   const fields = JSON.parse(form.fields) as { id: string; label?: string }[];
   const fieldPairs = fields
     .filter((f) => data[f.id] !== undefined)
@@ -254,34 +259,43 @@ responses.post("/submit/:formSlug", zValidator("json", submitSchema), async (c) 
 
   const branding = await getOrgEmailBranding(c.env.DB, form.org_id);
 
-  // Send receipt email
   if (settings.sendReceiptEmail && submitterEmail) {
     const { html, text } = renderFormReceiptEmail(branding, {
       formTitle: form.title,
       responseId: id,
       fields: fieldPairs,
     });
-    sendOrgEmail(c.env.DB, c.env, form.org_id, {
-      to: submitterEmail,
-      subject: `Receipt: ${form.title}`,
-      html,
-      text,
-      fromName: branding.orgName,
-    }).catch((err) => console.error("[EMAIL] Receipt send failed:", err));
+    deferBackgroundTask(
+      c,
+      sendOrgEmail(c.env.DB, c.env, form.org_id, {
+        to: submitterEmail,
+        subject: `Receipt: ${form.title}`,
+        html,
+        text,
+        fromName: branding.orgName,
+      }),
+      "Receipt email",
+    );
   }
 
-  // Send admin notifications (email and/or ntfy)
-  sendFormResponseNotifications(c.env.DB, c.env, settings, {
-    orgId: form.org_id,
-    formTitle: form.title,
-    responseId: id,
-    formCreatedBy: form.created_by,
-    submitterEmail,
-    fields: fieldPairs,
-  }).catch((err) => console.error("[NOTIFY] Response notification failed:", err));
+  deferBackgroundTask(
+    c,
+    sendFormResponseNotifications(c.env.DB, c.env, settings, {
+      orgId: form.org_id,
+      formTitle: form.title,
+      responseId: id,
+      formCreatedBy: form.created_by,
+      submitterEmail,
+      fields: fieldPairs,
+    }),
+    "Response notification",
+  );
 
-  // Trigger webhooks
-  triggerWebhook(form.id, "response.created", responsePayload, c.env).catch(() => {});
+  deferBackgroundTask(
+    c,
+    triggerWebhook(form.id, "response.created", responsePayload, c.env),
+    "Webhook",
+  );
 
   // Build response message
   const message = settings.successMessage || "Thank you for your submission!";
@@ -952,14 +966,18 @@ responses.post("/draft/:token/submit", zValidator("json", draftSubmitSchema), as
     .filter((f) => mergedData[f.id] !== undefined)
     .map((f) => ({ label: f.label ?? f.id, value: mergedData[f.id] }));
 
-  sendFormResponseNotifications(c.env.DB, c.env, settings, {
-    orgId: form.org_id,
-    formTitle: form.title,
-    responseId: row.id,
-    formCreatedBy: form.created_by,
-    submitterEmail,
-    fields: fieldPairs,
-  }).catch((err) => console.error("[NOTIFY] Response notification failed:", err));
+  deferBackgroundTask(
+    c,
+    sendFormResponseNotifications(c.env.DB, c.env, settings, {
+      orgId: form.org_id,
+      formTitle: form.title,
+      responseId: row.id,
+      formCreatedBy: form.created_by,
+      submitterEmail,
+      fields: fieldPairs,
+    }),
+    "Response notification",
+  );
 
   const message = settings.successMessage || "Thank you for your submission!";
   const redirectUrl = settings.redirectUrl;

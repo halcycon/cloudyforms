@@ -4,7 +4,7 @@ import { Plus, Search, MoreHorizontal, Pencil, Eye, Copy, Trash2, Share2, BarCha
 import toast from 'react-hot-toast';
 import { forms as formsApi, exportData } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { cn, formatDateShort, downloadFile } from '@/lib/utils';
+import { cn, formatDateShort, downloadFile, formPublicPath } from '@/lib/utils';
 import type { Form } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -151,8 +151,8 @@ export default function FormsPage() {
     }
   }
 
-  function copyShareLink(slug: string) {
-    navigator.clipboard.writeText(`${window.location.origin}/f/${slug}`);
+  function copyShareLink(form: Form) {
+    navigator.clipboard.writeText(`${window.location.origin}/f/${formPublicPath(form)}`);
     toast.success('Link copied!');
   }
 
@@ -267,7 +267,7 @@ export default function FormsPage() {
                       <DropdownMenuItem onClick={() => navigate(`/forms/${form.id}/responses`)}>
                         <Eye className="h-4 w-4" /> Responses
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => copyShareLink(form.slug)}>
+                      <DropdownMenuItem onClick={() => copyShareLink(form)}>
                         <Share2 className="h-4 w-4" /> Copy Share Link
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDuplicate(form.id)}>

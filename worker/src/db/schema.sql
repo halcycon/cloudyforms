@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS forms (
   org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  slug TEXT UNIQUE NOT NULL,
+  slug TEXT NOT NULL, -- unique per organisation (idx_forms_org_slug)
+  legacy_slug TEXT UNIQUE, -- pre-008 global slug; new rows store the form id
   status TEXT NOT NULL DEFAULT 'draft', -- draft, published, closed
   access_type TEXT NOT NULL DEFAULT 'public', -- public, unlisted, code, kiosk_only
   access_code TEXT,
@@ -238,6 +239,7 @@ CREATE TABLE IF NOT EXISTS form_workflow_stages (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_forms_org_id ON forms(org_id);
 CREATE INDEX IF NOT EXISTS idx_forms_slug ON forms(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_forms_org_slug ON forms(org_id, slug);
 CREATE INDEX IF NOT EXISTS idx_responses_form_id ON form_responses(form_id);
 CREATE INDEX IF NOT EXISTS idx_responses_fingerprint ON form_responses(fingerprint);
 CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id);

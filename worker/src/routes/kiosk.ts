@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateId } from "../lib/auth";
 import { dbQuery, dbQueryFirst, dbRun } from "../lib/db";
 import { authMiddleware, requireRole } from "../middleware/auth";
+import { FORM_ORG_SLUG_SQL } from "./forms";
 import type { Bindings } from "../index";
 
 const kiosk = new Hono<{ Bindings: Bindings }>();
@@ -148,9 +149,9 @@ kiosk.get("/token/:token", async (c) => {
   // Fetch published forms for this kiosk
   const formDetails = await Promise.all(
     formIds.map((fid) =>
-      dbQueryFirst<{ id: string; title: string; description: string | null; slug: string }>(
+      dbQueryFirst<{ id: string; title: string; description: string | null; slug: string; org_slug: string | null }>(
         c.env.DB,
-        "SELECT id, title, description, slug FROM forms WHERE id = ? AND status = 'published'",
+        `SELECT id, title, description, slug, ${FORM_ORG_SLUG_SQL} FROM forms WHERE id = ? AND status = 'published'`,
         [fid]
       )
     )
@@ -166,6 +167,7 @@ kiosk.get("/token/:token", async (c) => {
       title: f!.title,
       description: f!.description,
       slug: f!.slug,
+      orgSlug: f!.org_slug,
     })),
   });
 });

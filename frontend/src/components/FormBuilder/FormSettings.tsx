@@ -22,6 +22,7 @@ interface FormSettingsProps {
   settings: FormSettingsType;
   fields: FormField[];
   slug?: string;
+  orgSlug?: string | null;
   formId?: string;
   orgId?: string;
   onChange: (settings: FormSettingsType) => void;
@@ -36,7 +37,7 @@ const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Viewer' },
 ];
 
-export function FormSettings({ settings, fields, slug, formId, orgId, onChange, onSlugChange }: FormSettingsProps) {
+export function FormSettings({ settings, fields, slug, orgSlug, formId, orgId, onChange, onSlugChange }: FormSettingsProps) {
   const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
   const [orgGroups, setOrgGroups] = useState<OrgGroup[]>([]);
   const [savingWorkflow, setSavingWorkflow] = useState(false);
@@ -142,7 +143,8 @@ export function FormSettings({ settings, fields, slug, formId, orgId, onChange, 
                 placeholder="my-form-slug"
               />
               <p className="text-xs text-gray-400">
-                Used in the public URL: /f/{slug || '...'}
+                Unique within this organisation. Public URL: /f/{orgSlug ? `${orgSlug}/` : ''}{slug || '...'}
+                {orgSlug && <> (or /f/{slug || '...'} on the organisation&apos;s custom domain)</>}
               </p>
             </div>
           </div>

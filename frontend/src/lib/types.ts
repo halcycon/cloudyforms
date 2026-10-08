@@ -244,9 +244,13 @@ export interface StaticValue {
 export interface Form {
   id: string;
   orgId: string;
+  orgSlug?: string | null;
   title: string;
   description?: string;
+  /** Unique within the organisation only */
   slug: string;
+  /** Path after /f/ or /embed/ for the current site: bare slug on the org's custom domain, else "orgSlug/slug" */
+  publicPath?: string;
   status: FormStatus;
   accessType: FormAccessType;
   accessCode?: string;
