@@ -46,11 +46,8 @@ const DEFAULT_SETTINGS: FormSettings = {
   kioskOnly: false,
 };
 
-const DEFAULT_BRANDING: BrandingConfig = {
-  primaryColor: '#4f46e5',
-  backgroundColor: '#f9fafb',
-  textColor: '#0f172a',
-};
+/** Empty so new forms inherit the organisation's colours and theme. */
+const DEFAULT_BRANDING: BrandingConfig = {};
 
 function generateId(): string {
   return `field_${Math.random().toString(36).slice(2, 9)}`;
@@ -432,6 +429,7 @@ export function FormBuilder({ formId }: FormBuilderProps) {
               <TabsContent value="branding" className="flex-1 overflow-auto mt-0">
                 <BrandingSettings
                   branding={form.branding ?? DEFAULT_BRANDING}
+                  org={currentOrg}
                   onChange={(branding) => updateForm({ branding })}
                 />
               </TabsContent>

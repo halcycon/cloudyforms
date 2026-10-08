@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formRefFromParams } from '@/lib/utils';
+import { applyFormDocumentTheme } from '@/lib/formBranding';
 
 type PageState = 'loading' | 'error' | 'code_required' | 'ready' | 'closed';
 
@@ -40,6 +41,10 @@ export default function PublicFormPage() {
         }
       });
   }, [slug]);
+
+  useEffect(() => {
+    if (form?.branding) applyFormDocumentTheme(form.branding);
+  }, [form]);
 
   async function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault();

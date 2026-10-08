@@ -15,9 +15,10 @@ import {
 } from "../lib/email";
 import { deferBackgroundTask } from "../lib/background";
 import { sendFormResponseNotifications } from "../lib/form-notifications";
+import { sanitizePublicFormSettings } from "../lib/notification-settings";
 import type { Bindings } from "../index";
 import type { FormSettings } from "./forms";
-import { resolveOptionListReferences, serializeForm, type FormRow as FullFormRow } from "./forms";
+import { resolveOptionListReferences, serializeForm, withOrgBranding, type FormRow as FullFormRow } from "./forms";
 
 const responses = new Hono<{ Bindings: Bindings }>();
 
@@ -864,6 +865,8 @@ responses.get("/draft/:token", async (c) => {
   if (!formRow) return c.json({ error: "Form not found" }, 404);
 
   const formData = serializeForm(formRow);
+  formData.settings = sanitizePublicFormSettings(formData.settings);
+  formData.branding = await withOrgBranding(c.env.DB, formRow.org_id, formData.branding);
 
   // Resolve option list references
   await resolveOptionListReferences(c.env.DB, formData.fields);

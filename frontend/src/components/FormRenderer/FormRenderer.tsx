@@ -5,7 +5,12 @@ import type { Form, FormField } from '@/lib/types';
 import { responses } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { TurnstileWidget } from './TurnstileWidget';
-import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
+import {
+  formAccentStyle,
+  getFormPrimaryColor,
+  getFormSecondaryColor,
+  getFormSurfaceStyle,
+} from '@/lib/formBranding';
 import { formRef } from '@/lib/utils';
 import { FormFieldLayout } from './FormFieldLayout';
 import {
@@ -552,9 +557,11 @@ export function FormRenderer({
           className="cf-form-surface space-y-6 rounded-xl shadow-sm border p-6 sm:p-8"
           data-theme={surface.isDark ? 'dark' : 'light'}
           style={{
+            ...formAccentStyle(form.branding),
             backgroundColor: surface.cardBackground,
             color: surface.textColor,
             borderColor: surface.borderColor,
+            borderTop: `4px solid ${getFormSecondaryColor(form.branding)}`,
           }}
         >
           <FormFieldLayout

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { responses as responsesApi, exportData } from '@/lib/api';
 import type { Form } from '@/lib/types';
 import { FormRenderer } from '@/components/FormRenderer/FormRenderer';
+import { applyFormDocumentTheme } from '@/lib/formBranding';
 import { Button } from '@/components/ui/button';
 
 export default function PrefillSubmitPage() {
@@ -26,6 +27,10 @@ export default function PrefillSubmitPage() {
       })
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (form?.branding) applyFormDocumentTheme(form.branding);
+  }, [form]);
 
   async function handlePreviewPdf() {
     if (!token) return;

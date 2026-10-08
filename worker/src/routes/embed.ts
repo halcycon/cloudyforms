@@ -33,6 +33,8 @@
 import { Hono } from "hono";
 import { SignJWT, jwtVerify } from "jose";
 import { findFormByRef, formRefFromParams } from "../lib/formRef";
+import { sanitizePublicFormSettings } from "../lib/notification-settings";
+import { withOrgBranding, type FormSettings } from "./forms";
 import { uploadFile } from "../lib/r2";
 import { generateId } from "../lib/auth";
 import type { Bindings } from "../index";
@@ -636,11 +638,12 @@ embedRoutes.get("/form/:slugOrOrg/:slug?", async (c) => {
     fields: string;
     settings: string;
     branding: string;
+    org_id: string;
   }>(
     c.env.DB,
     formRefFromParams(c.req.param()),
     c.get("domainOrgId"),
-    "id, title, description, status, access_type, fields, settings, branding"
+    "id, title, description, status, access_type, fields, settings, branding, org_id"
   );
 
   if (!form || form.status !== "published") {
@@ -648,11 +651,12 @@ embedRoutes.get("/form/:slugOrOrg/:slug?", async (c) => {
   }
 
   let fields = [];
-  let settings = {};
-  let branding = {};
+  let settings = {} as FormSettings;
+  let branding: Record<string, unknown> = {};
   try { fields = JSON.parse(form.fields ?? "[]"); } catch { /* */ }
-  try { settings = JSON.parse(form.settings ?? "{}"); } catch { /* */ }
+  try { settings = sanitizePublicFormSettings(JSON.parse(form.settings ?? "{}")); } catch { /* */ }
   try { branding = JSON.parse(form.branding ?? "{}"); } catch { /* */ }
+  branding = await withOrgBranding(c.env.DB, form.org_id, branding);
 
   // Mint a short-lived token so the headless submit can bypass Turnstile.
   // Only the worker can verify this — a bot hitting the public form directly
@@ -738,11 +742,12 @@ embedRoutes.get("/config/:slugOrOrg/:slug?", async (c) => {
     status: string;
     access_type: string;
     branding: string;
+    org_id: string;
   }>(
     c.env.DB,
     formRefFromParams(c.req.param()),
     c.get("domainOrgId"),
-    "id, title, description, status, access_type, branding"
+    "id, title, description, status, access_type, branding, org_id"
   );
 
   if (!form || form.status !== "published") {
@@ -751,6 +756,7 @@ embedRoutes.get("/config/:slugOrOrg/:slug?", async (c) => {
 
   let branding: Record<string, unknown> = {};
   try { branding = JSON.parse(form.branding ?? "{}") as Record<string, unknown>; } catch { /* */ }
+  branding = await withOrgBranding(c.env.DB, form.org_id, branding);
 
   return c.json({
     id: form.id,

@@ -221,14 +221,17 @@ export interface FormSettings {
   workflowEnabled?: boolean;
 }
 
+/** Unset (or null, which clears a saved override) colours inherit from the organisation / theme. */
 export interface BrandingConfig {
   logoUrl?: string;
-  primaryColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
+  primaryColor?: string | null;
+  /** Accent: form card top band and field focus highlight */
+  secondaryColor?: string | null;
+  backgroundColor?: string | null;
+  textColor?: string | null;
   fontFamily?: string;
   /** Per-form theme (mode + preset). Overrides user / org / system theme. */
-  theme?: import('./themes').ThemeConfig;
+  theme?: import('./themes').ThemeConfig | null;
 }
 
 export interface StaticValue {

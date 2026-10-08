@@ -22,8 +22,7 @@ import type { Form } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { resolveFormAppearance, getFormPrimaryColor } from '@/lib/formBranding';
-import { DEFAULT_THEME, applyTokens, getTokens } from '@/lib/themes';
+import { resolveFormAppearance, applyFormDocumentTheme, formAccentStyle } from '@/lib/formBranding';
 import { FormFieldLayout } from '@/components/FormRenderer/FormFieldLayout';
 import {
   expandFields,
@@ -125,27 +124,7 @@ export default function EmbedFormPage() {
   // Apply embed-specific document theme (independent of org shell dark mode).
   useEffect(() => {
     if (!form?.branding) return;
-    const appearance = resolveFormAppearance(form.branding, themeParam);
-    const preset = form.branding.theme?.preset ?? DEFAULT_THEME.preset;
-    const mode = appearance.isDark ? 'dark' : 'light';
-
-    applyTokens(getTokens(preset, mode));
-    document.documentElement.classList.toggle('dark', appearance.isDark);
-
-    const primaryColor = getFormPrimaryColor(form.branding);
-    const root = document.documentElement;
-    if (primaryColor) {
-      const hex = primaryColor.replace('#', '');
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      root.style.setProperty('--primary', `${r} ${g} ${b}`);
-    }
-
-    document.body.style.backgroundColor = forceTransparent
-      ? 'transparent'
-      : appearance.pageBackground;
-    root.style.setProperty('--foreground', appearance.textColor);
+    applyFormDocumentTheme(form.branding, { themeParam, transparent: forceTransparent });
   }, [form, forceTransparent, themeParam]);
 
   const surface = form ? resolveFormAppearance(form.branding, themeParam) : null;
@@ -337,7 +316,7 @@ export default function EmbedFormPage() {
         onSubmit={handleSubmit}
         className="cf-form-surface space-y-4"
         data-theme={surface.isDark ? 'dark' : 'light'}
-        style={{ color: surface.textColor }}
+        style={{ ...formAccentStyle(form.branding), color: surface.textColor }}
         noValidate
       >
         <FormFieldLayout

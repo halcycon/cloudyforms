@@ -1,4 +1,4 @@
-import type { BrandingConfig } from '@/lib/types';
+import type { BrandingConfig, Organization } from '@/lib/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,10 +10,17 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSelector } from '@/components/ThemeSelector';
-import { getFormSurfaceStyle, getFormPrimaryColor } from '@/lib/formBranding';
+import {
+  getFormPrimaryColor,
+  getFormSecondaryColor,
+  getFormSurfaceStyle,
+  withOrgBranding,
+} from '@/lib/formBranding';
 
 interface BrandingSettingsProps {
   branding: BrandingConfig;
+  /** Organisation the form belongs to; unset branding inherits from it. */
+  org?: Pick<Organization, 'primaryColor' | 'secondaryColor' | 'theme'> | null;
   onChange: (branding: BrandingConfig) => void;
 }
 
@@ -27,13 +34,62 @@ const FONT_OPTIONS = [
   { label: 'Monospace', value: '"Courier New", monospace' },
 ];
 
-export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) {
+interface ColorFieldProps {
+  label: string;
+  /** Explicit override saved on the form, if any */
+  value?: string | null;
+  /** Colour used when there is no override */
+  inherited: string;
+  inheritedFrom: string;
+  onChange: (value: string | null) => void;
+}
+
+function ColorField({ label, value, inherited, inheritedFrom, onChange }: ColorFieldProps) {
+  const shown = value ?? inherited;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        {value ? (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Use {inheritedFrom}
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground">From {inheritedFrom}</span>
+        )}
+      </div>
+      <div className="flex gap-2 items-center">
+        <input
+          type="color"
+          value={shown}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 rounded border border-gray-300 cursor-pointer"
+        />
+        <Input
+          value={shown}
+          onChange={(e) => onChange(e.target.value || null)}
+          placeholder={inherited}
+          className="flex-1 font-mono text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function BrandingSettings({ branding, org, onChange }: BrandingSettingsProps) {
   function update<K extends keyof BrandingConfig>(key: K, value: BrandingConfig[K]) {
     onChange({ ...branding, [key]: value });
   }
 
-  const surface = getFormSurfaceStyle(branding);
-  const primaryColor = getFormPrimaryColor(branding);
+  const effective = withOrgBranding(branding, org);
+  const surface = getFormSurfaceStyle(effective);
+  const primaryColor = getFormPrimaryColor(effective);
+  const secondaryColor = getFormSecondaryColor(effective);
+  const themeDefaults = getFormSurfaceStyle({ ...effective, backgroundColor: null, textColor: null });
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-5">
@@ -66,59 +122,37 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Colors</h3>
 
-        <div className="space-y-1.5">
-          <Label>Primary Color</Label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="color"
-              value={branding.primaryColor ?? '#4f46e5'}
-              onChange={(e) => update('primaryColor', e.target.value)}
-              className="h-9 w-12 rounded border border-gray-300 cursor-pointer"
-            />
-            <Input
-              value={branding.primaryColor ?? '#4f46e5'}
-              onChange={(e) => update('primaryColor', e.target.value)}
-              placeholder="#4f46e5"
-              className="flex-1 font-mono text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Background Color</Label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="color"
-              value={branding.backgroundColor ?? '#f9fafb'}
-              onChange={(e) => update('backgroundColor', e.target.value)}
-              className="h-9 w-12 rounded border border-gray-300 cursor-pointer"
-            />
-            <Input
-              value={branding.backgroundColor ?? '#f9fafb'}
-              onChange={(e) => update('backgroundColor', e.target.value)}
-              placeholder="#f9fafb"
-              className="flex-1 font-mono text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>Text Color</Label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="color"
-              value={branding.textColor ?? '#0f172a'}
-              onChange={(e) => update('textColor', e.target.value)}
-              className="h-9 w-12 rounded border border-gray-300 cursor-pointer"
-            />
-            <Input
-              value={branding.textColor ?? '#0f172a'}
-              onChange={(e) => update('textColor', e.target.value)}
-              placeholder="#0f172a"
-              className="flex-1 font-mono text-sm"
-            />
-          </div>
-        </div>
+        <ColorField
+          label="Primary Color"
+          value={branding.primaryColor}
+          inherited={org?.primaryColor || getFormPrimaryColor({})}
+          inheritedFrom={org?.primaryColor ? 'organisation' : 'default'}
+          onChange={(v) => update('primaryColor', v)}
+        />
+        <ColorField
+          label="Secondary Color"
+          value={branding.secondaryColor}
+          inherited={org?.secondaryColor || primaryColor}
+          inheritedFrom={org?.secondaryColor ? 'organisation' : 'primary'}
+          onChange={(v) => update('secondaryColor', v)}
+        />
+        <p className="text-xs text-muted-foreground -mt-1">
+          Accent for the band across the top of the form and the highlight around the active field.
+        </p>
+        <ColorField
+          label="Background Color"
+          value={branding.backgroundColor}
+          inherited={themeDefaults.pageBackground}
+          inheritedFrom="theme"
+          onChange={(v) => update('backgroundColor', v)}
+        />
+        <ColorField
+          label="Text Color"
+          value={branding.textColor}
+          inherited={themeDefaults.textColor}
+          inheritedFrom="theme"
+          onChange={(v) => update('textColor', v)}
+        />
       </div>
 
       <Separator />
@@ -150,11 +184,14 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
       <Separator />
       <ThemeSelector
         label="Form Theme"
-        value={branding.theme}
+        value={branding.theme ?? org?.theme}
         onChange={(theme) => update('theme', theme)}
         showReset={!!branding.theme}
-        onReset={() => update('theme', undefined)}
+        onReset={() => update('theme', null)}
       />
+      {!branding.theme && org?.theme && (
+        <p className="text-xs text-muted-foreground -mt-3">Using the organisation theme.</p>
+      )}
 
       {/* Preview */}
       <Separator />
@@ -166,6 +203,7 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
             backgroundColor: surface.cardBackground,
             color: surface.textColor,
             borderColor: surface.borderColor,
+            borderTop: `4px solid ${secondaryColor}`,
             fontFamily: branding.fontFamily,
           }}
         >
@@ -173,6 +211,17 @@ export function BrandingSettings({ branding, onChange }: BrandingSettingsProps) 
           <p className="text-sm" style={{ color: surface.mutedTextColor }}>
             Your form will appear with these styles
           </p>
+          <div
+            className="h-9 rounded-md border px-3 text-sm flex items-center"
+            style={{
+              backgroundColor: surface.inputBackground,
+              borderColor: 'transparent',
+              boxShadow: `0 0 0 2px ${secondaryColor}`,
+              color: surface.mutedTextColor,
+            }}
+          >
+            Focused field
+          </div>
           <button
             className="px-4 py-2 rounded-md text-sm font-medium"
             style={{

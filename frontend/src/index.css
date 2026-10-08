@@ -127,6 +127,15 @@ body {
   outline: none !important;
 }
 
+/* Public / embedded form surface — focus highlight uses the form accent
+   (branding secondary colour), set as --form-accent on the form element */
+.cf-form-surface input:focus:not(.border-red-500),
+.cf-form-surface textarea:focus:not(.border-red-500),
+.cf-form-surface select:focus,
+.cf-form-surface button:focus-visible {
+  --tw-ring-color: rgb(var(--form-accent, var(--primary)));
+}
+
 /* Public / embedded form surface — explicit light/dark field styling */
 .cf-form-surface[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .cf-form-surface[data-theme="light"] textarea,

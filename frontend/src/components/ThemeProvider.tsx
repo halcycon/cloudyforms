@@ -9,6 +9,8 @@ import {
   mergeThemeConfigs,
 } from '@/lib/themes';
 
+const PUBLIC_FORM_ROUTE = /^\/(f|embed|fill)\//;
+
 interface ThemeContextValue {
   /** The fully-resolved effective theme config (after merging system → org → user). */
   effectiveTheme: ThemeConfig;
@@ -63,10 +65,10 @@ export function ThemeProvider({ children, systemDefault }: ThemeProviderProps) {
   );
 
   // Apply CSS variables + <html> class whenever the resolved theme changes.
-  // Embed routes (/embed/*) manage their own document theme from form branding
-  // and ?theme= query params — do not apply the org shell theme there.
+  // Public form routes manage their own document theme from form branding
+  // (applyFormDocumentTheme) — do not apply the signed-in user's theme there.
   useEffect(() => {
-    if (window.location.pathname.startsWith('/embed/')) return;
+    if (PUBLIC_FORM_ROUTE.test(window.location.pathname)) return;
 
     const tokens = getTokens(effectiveTheme.preset, resolvedMode);
     applyTokens(tokens);

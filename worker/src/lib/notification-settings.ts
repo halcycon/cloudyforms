@@ -81,13 +81,19 @@ export async function resolveNotificationEmails(
   return [...emails];
 }
 
-/** Strip secrets from settings returned to public form clients. */
+/**
+ * Strip notification and webhook configuration from settings returned to
+ * public form clients. Renderers don't need any of it, and an ntfy topic alone
+ * is enough to subscribe to every submission.
+ */
 export function sanitizePublicFormSettings(settings: FormSettings): FormSettings {
   const safe = { ...settings };
+  delete safe.webhookUrl;
   delete safe.webhookSecret;
-  if (safe.ntfy) {
-    safe.ntfy = { ...safe.ntfy };
-    delete safe.ntfy.authToken;
-  }
+  delete safe.ntfy;
+  delete safe.notifyByNtfy;
+  delete safe.notifyByEmail;
+  delete safe.emailNotify;
+  safe.notificationEmails = [];
   return safe;
 }

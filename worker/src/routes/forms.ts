@@ -261,6 +261,40 @@ export async function ensureUniqueSlug(db: D1Database, orgId: string, base: stri
   }
 }
 
+/**
+ * Fill branding keys the form hasn't set from its organisation, so public
+ * forms mirror the org's colours and theme unless overridden.
+ */
+export async function withOrgBranding(
+  db: D1Database,
+  orgId: string,
+  branding: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const org = await dbQueryFirst<{
+    primary_color: string | null;
+    secondary_color: string | null;
+    theme: string | null;
+  }>(
+    db,
+    "SELECT primary_color, secondary_color, theme FROM organizations WHERE id = ?",
+    [orgId]
+  );
+  if (!org) return branding;
+
+  let theme: unknown;
+  try { theme = org.theme ? JSON.parse(org.theme) : undefined; } catch { /* ignore malformed */ }
+
+  const overrides = Object.fromEntries(
+    Object.entries(branding).filter(([, value]) => value !== null && value !== undefined)
+  );
+  return {
+    ...(org.primary_color ? { primaryColor: org.primary_color } : {}),
+    ...(org.secondary_color ? { secondaryColor: org.secondary_color } : {}),
+    ...(theme ? { theme } : {}),
+    ...overrides,
+  };
+}
+
 async function getUserOrgRole(
   db: D1Database,
   userId: string,
@@ -373,6 +407,7 @@ forms.get("/public/:slugOrOrg/:slug?", optionalAuthMiddleware, async (c) => {
   // Hide access code and notification secrets from public response
   const result = serializeForm(form, domainOrgId);
   result.settings = sanitizePublicFormSettings({ ...settings });
+  result.branding = await withOrgBranding(c.env.DB, form.org_id, result.branding);
   if (form.access_code) {
     result.accessCode = undefined as unknown as null;
   }
@@ -553,7 +588,11 @@ forms.on(["PUT", "PATCH"],
       params.push(JSON.stringify(merged));
     }
     if (updates.branding !== undefined) {
-      const merged = { ...JSON.parse(form.branding), ...updates.branding };
+      const merged: Record<string, unknown> = { ...JSON.parse(form.branding), ...updates.branding };
+      // null clears an override so the key falls back to the organisation
+      for (const [key, value] of Object.entries(merged)) {
+        if (value === null) delete merged[key];
+      }
       sets.push("branding = ?");
       params.push(JSON.stringify(merged));
     }
