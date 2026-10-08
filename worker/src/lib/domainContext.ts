@@ -47,6 +47,8 @@ export function collectSiteHostCandidates(c: {
   add(c.req.header("Origin"));
   add(c.req.header("Referer"));
   add(c.req.header("X-CloudyForms-Site-Host"));
+  // Set by the Pages /api proxy; Host is the shared workers.dev hostname there.
+  add(c.req.header("X-Forwarded-Host"));
   add(c.req.header("Host"));
 
   return candidates;
