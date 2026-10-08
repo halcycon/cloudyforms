@@ -12,7 +12,8 @@
  *   Headless mode — <div data-cloudyform="slug" data-cf-headless>
  *     Fetches the form definition and renders plain <form> HTML directly into
  *     the host page's DOM. No iframe, no CloudyForms CSS — the host site's
- *     own stylesheet applies to all inputs naturally.
+ *     own stylesheet applies to all inputs naturally. The one exception is a
+ *     zero-specificity rule set laying out field widths (data-cf-width).
  *
  * "slug" below is a form ref: "orgSlug/formSlug", or a bare "formSlug"
  * resolved via the request's custom domain (see lib/formRef).
@@ -91,6 +92,23 @@ function el(tag,attrs,children){
     e.appendChild(typeof c==='string'?document.createTextNode(c):c);
   });}
   return e;
+}
+
+// ── Headless layout ─────────────────────────────────────────────────────────
+// Only lays out field widths from the form definition. Zero-specificity
+// :where() selectors so the host site's own CSS always wins.
+
+var LAYOUT_CSS=
+  ':where([data-cf-form]){display:flex;flex-wrap:wrap;column-gap:1rem}'+
+  ':where([data-cf-form])>:where(*){flex:0 0 100%;min-width:0;box-sizing:border-box}'+
+  ':where([data-cf-form])>:where([data-cf-width]){flex-basis:calc(var(--cf-w)*1% - (100 - var(--cf-w))*0.01rem)}'+
+  ':where([data-cf-form])>:where(button[type=submit]){flex:0 0 auto}'+
+  '@media (max-width:540px){:where([data-cf-form])>:where([data-cf-width]){flex-basis:100%}}';
+
+function ensureLayoutStyles(){
+  if(document.querySelector('style[data-cf-layout]')) return;
+  var s=el('style',{'data-cf-layout':'1'},LAYOUT_CSS);
+  (document.head||document.documentElement).appendChild(s);
 }
 
 // ── Field renderers ─────────────────────────────────────────────────────────
@@ -309,6 +327,11 @@ function renderField(field,formEl){
   }
 
   var wrap=el('div',{'data-cf-field-wrap':field.id,className:'cf-field'});
+  var width=Number(field.width);
+  if(width>0&&width<100){
+    wrap.setAttribute('data-cf-width',String(width));
+    wrap.style.setProperty('--cf-w',String(width));
+  }
   var label=el('label',{for:'cf-'+field.id},field.label+(field.required?' *':''));
   wrap.appendChild(label);
 
@@ -419,6 +442,7 @@ async function renderForm(slug,container){
   container.removeAttribute('data-cf-loading');
   var embedToken=form_def.embedToken||'';
 
+  ensureLayoutStyles();
   var formEl=el('form',{'data-cf-form':slug,'novalidate':'novalidate'});
 
   // Render all fields
