@@ -96,7 +96,8 @@ async function triggerWebhook(
   formId: string,
   event: string,
   payload: unknown,
-  env: Bindings
+  env: Bindings,
+  settings?: Pick<FormSettings, "webhookUrl" | "webhookSecret">
 ): Promise<void> {
   const webhooks = await dbQuery<{
     url: string;
@@ -106,6 +107,11 @@ async function triggerWebhook(
     "SELECT url, secret FROM webhooks WHERE form_id = ? AND is_active = 1",
     [formId]
   );
+
+  // The form builder stores a webhook in the form settings rather than the webhooks table.
+  if (settings?.webhookUrl && !webhooks.some((wh) => wh.url === settings.webhookUrl)) {
+    webhooks.push({ url: settings.webhookUrl, secret: settings.webhookSecret ?? null });
+  }
 
   const body = JSON.stringify({ event, data: payload, timestamp: new Date().toISOString() });
   const deliveries: Promise<unknown>[] = [];
@@ -253,10 +259,19 @@ responses.post("/submit/:slugOrOrg/:slug?", zValidator("json", submitSchema), as
   console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug} stage=${firstStageId ?? 'none'}`);
 
   // Post-submission side effects (complete after response via waitUntil)
-  const fields = JSON.parse(form.fields) as { id: string; label?: string }[];
+  const fields = JSON.parse(form.fields) as { id: string; label?: string; type?: string }[];
   const fieldPairs = fields
     .filter((f) => data[f.id] !== undefined)
     .map((f) => ({ label: f.label ?? f.id, value: data[f.id] }));
+  const webhookPayload = {
+    ...responsePayload,
+    formSlug: form.slug,
+    formTitle: form.title,
+    submitterEmail,
+    fields: fields
+      .filter((f) => data[f.id] !== undefined)
+      .map((f) => ({ id: f.id, label: f.label ?? f.id, type: f.type ?? null, value: data[f.id] })),
+  };
 
   const branding = await getOrgEmailBranding(c.env.DB, form.org_id);
 
@@ -294,7 +309,7 @@ responses.post("/submit/:slugOrOrg/:slug?", zValidator("json", submitSchema), as
 
   deferBackgroundTask(
     c,
-    triggerWebhook(form.id, "response.created", responsePayload, c.env),
+    triggerWebhook(form.id, "response.created", webhookPayload, c.env, settings),
     "Webhook",
   );
 
