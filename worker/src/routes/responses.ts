@@ -259,10 +259,19 @@ responses.post("/submit/:slugOrOrg/:slug?", zValidator("json", submitSchema), as
   console.log(`[RESPONSES] Submission saved id=${id} formId=${form.id} slug=${formSlug} stage=${firstStageId ?? 'none'}`);
 
   // Post-submission side effects (complete after response via waitUntil)
-  const fields = JSON.parse(form.fields) as { id: string; label?: string; type?: string }[];
+  const fields = JSON.parse(form.fields) as {
+    id: string;
+    label?: string;
+    type?: string;
+    options?: ({ label?: string; value?: string } | string)[];
+  }[];
   const fieldPairs = fields
     .filter((f) => data[f.id] !== undefined)
     .map((f) => ({ label: f.label ?? f.id, value: data[f.id] }));
+  const optionLabel = (f: (typeof fields)[number], value: unknown) => {
+    const option = f.options?.find((o) => (typeof o === "string" ? o : o.value) === value);
+    return option === undefined ? value : typeof option === "string" ? option : option.label ?? option.value ?? value;
+  };
   const webhookPayload = {
     ...responsePayload,
     formSlug: form.slug,
@@ -270,7 +279,15 @@ responses.post("/submit/:slugOrOrg/:slug?", zValidator("json", submitSchema), as
     submitterEmail,
     fields: fields
       .filter((f) => data[f.id] !== undefined)
-      .map((f) => ({ id: f.id, label: f.label ?? f.id, type: f.type ?? null, value: data[f.id] })),
+      .map((f) => ({
+        id: f.id,
+        label: f.label ?? f.id,
+        type: f.type ?? null,
+        value: data[f.id],
+        displayValue: Array.isArray(data[f.id])
+          ? (data[f.id] as unknown[]).map((v) => optionLabel(f, v))
+          : optionLabel(f, data[f.id]),
+      })),
   };
 
   const branding = await getOrgEmailBranding(c.env.DB, form.org_id);
